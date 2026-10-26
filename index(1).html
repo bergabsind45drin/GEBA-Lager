@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173b32">
+<title>Mein Lager – Handwerk</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#17211d;background:#f4f6f4}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:12px 15px;font-weight:700;background:#173b32;color:white}
+button.secondary{background:#e4ebe6;color:#173b32}button.danger{background:#a52c2c}button:disabled{opacity:.5;cursor:not-allowed}
+header{background:#173b32;color:white;padding:18px max(16px,calc((100vw - 1100px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:1.25rem;margin:0}header small{opacity:.8}.wrap{max-width:1100px;margin:auto;padding:18px}
+.panel{background:white;border:1px solid #e0e7e2;border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 3px 12px #183c3210}
+.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat{background:#f1f5f2;padding:14px;border-radius:14px}.stat strong{display:block;font-size:1.5rem}.stat span{font-size:.85rem;color:#52645a}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}.actions button{min-height:72px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row input,.row select,.field input,.field select{width:100%;min-width:0;border:1px solid #cbd6ce;border-radius:10px;padding:12px;background:white;color:#17211d}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.field label{font-size:.9rem;font-weight:650}.search{flex:1;min-width:190px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid #e7ece8;font-size:.92rem}th{color:#52645a;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
+.table-wrap{overflow-x:auto}.pill{display:inline-block;background:#e4f3e8;color:#215b35;border-radius:999px;padding:4px 9px;font-size:.78rem;font-weight:700}.low{background:#fff0d7;color:#8b4d00}
+.muted{color:#617068;font-size:.9rem}.msg{padding:12px;border-radius:10px;background:#eef5ef;margin:10px 0}.error{background:#fff0ef;color:#8d211c}.login{max-width:420px;margin:8vh auto}
+h2{margin:0 0 12px;font-size:1.15rem}.smallbtn{padding:7px 10px;border-radius:9px;font-size:.85rem}
+.modal{position:fixed;inset:0;background:#10231dcc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}.modal-card{background:white;border-radius:18px;padding:20px;width:min(500px,100%);max-height:90vh;overflow:auto}
+footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.actions{grid-template-columns:repeat(2,1fr)}header{padding:16px}.wrap{padding:12px}.panel{padding:14px}th:nth-child(3),td:nth-child(3){display:none}}
+</style>
+</head>
+<body>
+<header><div><h1>📦 Mein Lager</h1><small>Einfach. Schnell. Gemeinsam.</small></div><div id="headerUser" class="row hidden"><small id="userEmail"></small><button id="logoutBtn" class="secondary smallbtn">Abmelden</button></div></header>
+<main class="wrap">
+  <section id="configScreen" class="panel login hidden">
+    <h2>Einmalige Verbindung einrichten</h2>
+    <p class="muted">Trage die Zugangsdaten deines Supabase-Projekts ein. Sie werden nur in diesem Browser gespeichert.</p>
+    <div class="field"><label>Project URL</label><input id="cfgUrl" placeholder="https://deinprojekt.supabase.co"></div>
+    <div class="field"><label>Publishable / anon key</label><input id="cfgKey" placeholder="eyJ..."></div>
+    <button id="saveConfig" style="width:100%">Verbinden</button>
+    <p class="muted">Die Datenbank muss zuerst mit der Datei <b>schema.sql</b> eingerichtet werden. Anleitung siehe README.</p>
+  </section>
+
+  <section id="loginScreen" class="panel login hidden">
+    <h2>Anmelden</h2><p class="muted">Mit deinem persönlichen Lager-Zugang anmelden.</p>
+    <div class="field"><label>E-Mail</label><input id="email" type="email" autocomplete="username" placeholder="name@firma.de"></div>
+    <div class="field"><label>Passwort</label><input id="password" type="password" autocomplete="current-password" placeholder="Passwort"></div>
+    <button id="loginBtn" style="width:100%">Anmelden</button>
+    <div id="loginMsg" class="msg hidden"></div>
+    <p class="muted">Die drei Nutzer legst du einmal im Supabase-Dashboard an (Anleitung in README).</p>
+  </section>
+
+  <section id="appScreen" class="hidden">
+    <div id="notice" class="msg hidden"></div>
+    <div class="grid panel">
+      <div class="stat"><strong id="totalProducts">0</strong><span>Artikel</span></div>
+      <div class="stat"><strong id="totalUnits">0</strong><span>Gesamtbestand</span></div>
+      <div class="stat"><strong id="lowCount">0</strong><span>Nachbestellen</span></div>
+      <div class="stat"><strong id="movementCount">0</strong><span>Buchungen heute</span></div>
+    </div>
+    <div class="actions">
+      <button id="scanBtn">▦ Scannen / Buchen</button>
+      <button id="addBtn" class="secondary">＋ Artikel anlegen</button>
+      <button id="importBtn" class="secondary">⇧ CSV importieren</button>
+      <button id="exportBtn" class="secondary">⇩ CSV exportieren</button>
+    </div>
+    <section class="panel">
+      <div class="row" style="margin-bottom:12px"><h2 style="margin:0">Lagerbestand</h2><input id="search" class="search" placeholder="Artikel, Nummer oder Lagerort suchen…"><button id="lowStockBtn" class="secondary">Nur Nachbestellen</button><button id="refreshBtn" class="secondary">Aktualisieren</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Bestand</th><th>Einheit</th><th>Lagerort</th><th>Status</th><th></th></tr></thead><tbody id="productsBody"></tbody></table></div>
+      <p class="muted">Tipp: Bei fehlendem Barcode kannst du Artikelnummern auch manuell eingeben.</p>
+    </section>
+    <section class="panel"><h2>Letzte Buchungen</h2><div class="table-wrap"><table><thead><tr><th>Zeit</th><th>Artikel</th><th>Änderung</th><th>Nutzer</th></tr></thead><tbody id="movementsBody"></tbody></table></div></section>
+    <footer>Bestände werden in der gemeinsamen Online-Datenbank gespeichert. Buchungen sind für alle angemeldeten Nutzer sichtbar.</footer>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden"><div class="modal-card"><div class="row" style="justify-content:space-between"><h2 id="modalTitle">Aktion</h2><button id="closeModal" class="secondary smallbtn">Schließen</button></div><div id="modalContent"></div></div></div>
+<input id="csvFile" type="file" accept=".csv,text/csv" class="hidden">
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let client = null, currentUser = null, products = [], movements = [], editingId = null, scanStream = null, showLowStockOnly = false;
+  const cfg = () => ({url:localStorage.getItem('lager_supabase_url'),key:localStorage.getItem('lager_supabase_key')});
+  function show(id){$(id).classList.remove('hidden')} function hide(id){$(id).classList.add('hidden')}
+  function notify(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);show('notice');setTimeout(()=>hide('notice'),6500)}
+  function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function connect(){
+    const c=cfg(); if(!c.url||!c.key){show('configScreen');hide('loginScreen');hide('appScreen');return}
+    try { client=window.supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}); hide('configScreen'); client.auth.getSession().then(({data})=>{if(data.session){currentUser=data.session.user;enterApp()}else{show('loginScreen');hide('appScreen')}}); client.auth.onAuthStateChange((_event,session)=>{if(session){currentUser=session.user;enterApp()}else{currentUser=null;hide('appScreen');show('loginScreen');hide('headerUser')}}); }
+    catch(e){show('configScreen');notify('Verbindungseinstellungen prüfen.',true)}
+  }
+  async function enterApp(){hide('loginScreen');hide('configScreen');show('appScreen');show('headerUser');$('userEmail').textContent=currentUser.email||'';await refreshAll()}
+  async function login(){ $('loginMsg').textContent='Anmeldung läuft…';show('loginMsg'); const {error}=await client.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value}); if(error){$('loginMsg').textContent=error.message;$('loginMsg').classList.add('error')}else{hide('loginMsg')} }
+  async function refreshAll(){
+    if(!client||!currentUser)return;
+    const [p,m]=await Promise.all([client.from('products').select('*').order('name').limit(1001),client.from('stock_movements').select('id,product_id,delta,reason,created_at,user_email,products(name)').order('created_at',{ascending:false}).limit(20)]);
+    if(p.error){notify('Artikel konnten nicht geladen werden: '+p.error.message,true);return}
+    products=p.data||[];movements=m.data||[];
+    renderProducts();renderMovements();
+    $('totalProducts').textContent=products.length;
+    $('totalUnits').textContent=products.reduce((n,p)=>n+Number(p.quantity||0),0).toLocaleString('de-DE');
+    $('lowCount').textContent=products.filter(p=>Number(p.quantity)<=Number(p.min_quantity||0)).length;
+    const today=new Date();today.setHours(0,0,0,0);
+    $('movementCount').textContent=movements.filter(m=>new Date(m.created_at)>=today).length;
+  }
+  function renderProducts(){
+    const q=$('search').value.toLowerCase().trim();
+    const list=products.filter(p=>(!showLowStockOnly || Number(p.quantity)<=Number(p.min_quantity||0)) && [p.name,p.sku,p.barcode,p.location].some(v=>String(v||'').toLowerCase().includes(q)));
+    $('lowStockBtn').textContent=showLowStockOnly?'Alle Artikel anzeigen':'Nur Nachbestellen';
+    $('productsBody').innerHTML=list.map(p=>`<tr><td><b>${escapeHtml(p.name)}</b><br><span class="muted">${escapeHtml(p.sku||p.barcode||'')}</span></td><td><b>${Number(p.quantity).toLocaleString('de-DE')}</b></td><td>${escapeHtml(p.unit||'Stück')}</td><td>${escapeHtml(p.location||'–')}</td><td>${Number(p.quantity)<=Number(p.min_quantity||0)?'<span class="pill low">Nachbestellen</span>':'<span class="pill">OK</span>'}</td><td><button class="secondary smallbtn" data-action="book" data-id="${p.id}">Buchen</button> <button class="secondary smallbtn" data-action="edit" data-id="${p.id}">✎</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted">Keine Artikel gefunden.</td></tr>';
+  }
+  function renderMovements(){
+    $('movementsBody').innerHTML=movements.map(m=>`<tr><td>${new Date(m.created_at).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'})}</td><td>${escapeHtml(m.products?.name||'Artikel')}</td><td><b style="color:${m.delta<0?'#a52c2c':'#267043'}">${m.delta>0?'+':''}${Number(m.delta)}</b> <span class="muted">${escapeHtml(m.reason||'')}</span></td><td>${escapeHtml(m.user_email||'Nutzer')}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Noch keine Buchungen.</td></tr>';
+  }
+  function openModal(title,html){$('modalTitle').textContent=title;$('modalContent').innerHTML=html;show('modal')}
+  function closeModal(){hide('modal');if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}}
+  function articleForm(p={}){
+    editingId=p.id||null;
+    openModal(editingId?'Artikel bearbeiten':'Neuen Artikel anlegen',`
+      <div class="field"><label>Artikelname *</label><input id="fName" value="${escapeHtml(p.name||'')}" placeholder="z. B. NYM-J 3×1,5"></div>
+      <div class="field"><label>Artikelnummer (optional)</label><input id="fSku" value="${escapeHtml(p.sku||'')}" placeholder="z. B. EL-001"></div>
+      <div class="field"><label>Barcode / QR-Code (optional)</label><input id="fBarcode" value="${escapeHtml(p.barcode||'')}" placeholder="Scancode oder eigene Nummer"></div>
+      <div class="row"><div class="field" style="flex:1"><label>Bestand</label><input id="fQty" type="number" min="0" step="any" value="${Number(p.quantity||0)}"></div><div class="field" style="flex:1"><label>Einheit</label><input id="fUnit" value="${escapeHtml(p.unit||'Stück')}" placeholder="Stück, m, Pack"></div></div>
+      <div class="row"><div class="field" style="flex:1"><label>Mindestbestand</label><input id="fMin" type="number" min="0" step="any" value="${Number(p.min_quantity||0)}"></div><div class="field" style="flex:1"><label>Lagerort</label><input id="fLoc" value="${escapeHtml(p.location||'')}" placeholder="Regal A, Fach 2"></div></div>
+      <button id="saveProduct" style="width:100%">Speichern</button><div id="formMsg" class="muted" style="margin-top:8px"></div>`);
+    $('saveProduct').onclick=saveProduct;
+  }
+  async function saveProduct(){
+    const name=$('fName').value.trim(); if(!name){$('formMsg').textContent='Bitte einen Artikelnamen eingeben.';return}
+    const data={name,sku:$('fSku').value.trim()||null,barcode:$('fBarcode').value.trim()||null,quantity:Number($('fQty').value||0),unit:$('fUnit').value.trim()||'Stück',min_quantity:Number($('fMin').value||0),location:$('fLoc').value.trim()||null};
+    if(data.quantity<0||data.min_quantity<0){$('formMsg').textContent='Bestände dürfen nicht negativ sein.';return}
+    $('saveProduct').disabled=true;
+    let result;
+    if(editingId) result=await client.from('products').update(data).eq('id',editingId).select().single();
+    else { if(products.length>=1000){$('formMsg').textContent='Die Grenze von 1.000 Artikeln ist erreicht.';$('saveProduct').disabled=false;return} result=await client.from('products').insert(data).select().single() }
+    $('saveProduct').disabled=false;
+    if(result.error){$('formMsg').textContent='Fehler: '+result.error.message;return}
+    closeModal();await refreshAll();notify('Artikel gespeichert.');
+  }
+  function bookingForm(p=null, initialCode=''){
+    if(!p && initialCode){p=products.find(x=>x.barcode===initialCode||x.sku===initialCode||x.id===initialCode)}
+    openModal('Material buchen',`
+      <div class="field"><label>Artikel / Barcode</label><input id="bCode" value="${escapeHtml(p?(p.barcode||p.sku||p.name):initialCode)}" placeholder="Barcode oder Artikelnummer"></div>
+      <div class="field"><label>Artikel auswählen</label><select id="bProduct"><option value="">Bitte auswählen…</option>${products.map(x=>`<option value="${x.id}" ${p?.id===x.id?'selected':''}>${escapeHtml(x.name)} – Bestand ${Number(x.quantity)} ${escapeHtml(x.unit||'Stück')}</option>`).join('')}</select></div>
+      <div class="row"><div class="field" style="flex:1"><label>Aktion</label><select id="bAction"><option value="out">Entnehmen (−)</option><option value="in">Einlagern (+)</option></select></div><div class="field" style="flex:1"><label>Menge</label><input id="bQty" type="number" min="0.001" step="any" value="1"></div></div>
+      <div class="field"><label>Notiz (optional)</label><input id="bReason" placeholder="z. B. Baustelle Müller"></div>
+      <button id="doBooking" style="width:100%">Buchung bestätigen</button><div id="bookMsg" class="muted" style="margin-top:8px"></div>`);
+    $('bCode').addEventListener('change',()=>{const code=$('bCode').value.trim();const match=products.find(x=>x.barcode===code||x.sku===code);if(match)$('bProduct').value=match.id});
+    $('doBooking').onclick=async()=>{
+      const productId=$('bProduct').value, qty=Number($('bQty').value), action=$('bAction').value;
+      if(!productId||!(qty>0)){$('bookMsg').textContent='Bitte Artikel und gültige Menge auswählen.';return}
+      $('doBooking').disabled=true;
+      const {data,error}=await client.rpc('adjust_stock',{p_product_id:productId,p_delta:action==='out'?-qty:qty,p_reason:$('bReason').value.trim()|| (action==='out'?'Entnahme':'Wareneingang')});
+      $('doBooking').disabled=false;
+      if(error){$('bookMsg').textContent='Buchung fehlgeschlagen: '+error.message;return}
+      closeModal();await refreshAll();notify('Bestand aktualisiert.');
+    };
+  }
+  async function scanFlow(){
+    openModal('Barcode scannen',`<p class="muted">Erlaube den Kamerazugriff. Wenn dein Browser keinen Scanner unterstützt, kannst du den Code unten eintippen.</p><video id="video" autoplay muted playsinline webkit-playsinline style="width:100%;max-height:260px;background:#111;border-radius:12px;object-fit:cover"></video><div class="field" style="margin-top:12px"><label>Barcode / Artikelnummer</label><input id="manualCode" placeholder="Code hier eingeben"></div><button id="manualContinue" style="width:100%">Artikel suchen</button><div id="scanMsg" class="muted" style="margin-top:8px"></div>`);
+    $('manualContinue').onclick=()=>{const code=$('manualCode').value.trim();closeModal();bookingForm(null,code)};
+    if(!('BarcodeDetector' in window)){ $('scanMsg').textContent='Automatischer Kamera-Scan wird von diesem Browser nicht unterstützt. Code manuell eingeben oder externen Scanner verwenden.';return}
+    try{
+      const detector=new BarcodeDetector({formats:['qr_code','code_128','ean_13','ean_8','upc_a','upc_e','code_39','itf']});
+      scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      const video=$('video');video.muted=true;video.autoplay=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.srcObject=scanStream;await video.play();
+      // Safari auf dem iPhone kann gelegentlich eine schwarze Vorschau zeigen; Videoebene einmal neu starten.
+      if(video.videoWidth===0){video.srcObject=null;await new Promise(resolve=>setTimeout(resolve,150));video.srcObject=scanStream;await video.play().catch(()=>{});}
+      const tick=async()=>{if(!$('modal').classList.contains('hidden')&&scanStream){try{const codes=await detector.detect(video);if(codes.length){const code=codes[0].rawValue;closeModal();bookingForm(null,code);return}}catch(e){}requestAnimationFrame(tick)}};
+      requestAnimationFrame(tick);
+    }catch(e){$('scanMsg').textContent='Kamera nicht verfügbar. Bitte Code manuell eingeben.'}
+  }
+  function download(filename,text,type='text/csv;charset=utf-8'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type}));a.download=filename;a.click();URL.revokeObjectURL(a.href)}
+  function csvEscape(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+  function exportCsv(){const rows=[['name','sku','barcode','quantity','unit','min_quantity','location'],...products.map(p=>[p.name,p.sku,p.barcode,p.quantity,p.unit,p.min_quantity,p.location])];download('lager_artikel.csv',rows.map(r=>r.map(csvEscape).join(';')).join('\r\n'))}
+  function parseCsv(text){let rows=[],row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){let c=text[i];if(c==='"'&&quoted&&text[i+1]==='"'){cell+='"';i++}else if(c==='"'){quoted=!quoted}else if((c===';'||c===',')&&!quoted){row.push(cell);cell=''}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(v=>v.trim()))rows.push(row);row=[];cell=''}else cell+=c}row.push(cell);if(row.some(v=>v.trim()))rows.push(row);return rows}
+  async function importCsvFile(file){
+    const rows=parseCsv(await file.text());if(rows.length<2){notify('CSV-Datei enthält keine Artikel.',true);return}
+    const headers=rows.shift().map(h=>h.trim().toLowerCase().replace(/^\ufeff/,''));
+    const idx=(...names)=>headers.findIndex(h=>names.includes(h));
+    const ni=idx('name','artikel','artikelname'),si=idx('sku','artikelnummer','nummer'),bi=idx('barcode','ean','qr-code'),qi=idx('quantity','bestand','menge'),ui=idx('unit','einheit'),mi=idx('min_quantity','mindestbestand','minbestand'),li=idx('location','lagerort');
+    if(ni<0){notify('CSV benötigt eine Spalte name oder Artikelname.',true);return}
+    const data=rows.map(r=>({name:(r[ni]||'').trim(),sku:si>=0?(r[si]||'').trim()||null:null,barcode:bi>=0?(r[bi]||'').trim()||null:null,quantity:qi>=0?Number(String(r[qi]||'0').replace(',','.')):0,unit:ui>=0?(r[ui]||'Stück').trim():'Stück',min_quantity:mi>=0?Number(String(r[mi]||'0').replace(',','.')):0,location:li>=0?(r[li]||'').trim()||null:null})).filter(x=>x.name);
+    if(products.length+data.length>1000){notify('Import würde die Grenze von 1.000 Artikeln überschreiten.',true);return}
+    const {error}=await client.from('products').insert(data);
+    if(error){notify('Import fehlgeschlagen: '+error.message,true);return}
+    await refreshAll();notify(data.length+' Artikel importiert.');
+  }
+  $('saveConfig').onclick=()=>{const url=$('cfgUrl').value.trim(),key=$('cfgKey').value.trim();if(!url||!key)return;localStorage.setItem('lager_supabase_url',url);localStorage.setItem('lager_supabase_key',key);location.reload()};
+  $('loginBtn').onclick=login;$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+  $('logoutBtn').onclick=()=>client.auth.signOut();$('refreshBtn').onclick=refreshAll;$('search').oninput=renderProducts;$('lowStockBtn').onclick=()=>{showLowStockOnly=!showLowStockOnly;renderProducts()};
+  $('addBtn').onclick=()=>articleForm();$('scanBtn').onclick=scanFlow;$('exportBtn').onclick=exportCsv;$('importBtn').onclick=()=>$('csvFile').click();
+  $('csvFile').onchange=e=>{if(e.target.files[0])importCsvFile(e.target.files[0]);e.target.value=''};
+  $('closeModal').onclick=closeModal;$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
+  $('productsBody').addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(!b)return;const p=products.find(x=>x.id===b.dataset.id);if(!p)return;if(b.dataset.action==='edit')articleForm(p);else bookingForm(p)});
+  connect();
+})();
+</script>
+</body>
+</html>
