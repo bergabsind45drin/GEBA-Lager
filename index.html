@@ -38,16 +38,6 @@ table{width:100%;border-collapse:collapse}
 th,td{text-align:left;padding:11px 8px;border-bottom:1px solid #e0ebf5;font-size:.92rem}
 th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 .table-wrap{overflow-x:auto}
-.product-thumb{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid #d7e6f5;margin:0 0 6px;display:block;background:#f3f8fc}
-.image-preview{max-width:100%;max-height:220px;object-fit:contain;border:1px solid #d7e6f5;border-radius:12px;margin-top:8px}
-.tool-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tool-form .field{margin:0}.tool-form .wide{grid-column:1/-1}
-@media(max-width:700px){.tool-form{grid-template-columns:1fr}.tool-form .wide{grid-column:auto}}
-
-.module-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
-.module-tile{min-height:190px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;text-align:left;padding:22px;border-radius:18px;box-shadow:0 4px 14px #0078d41c;white-space:normal}
-.module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.inventory-tile{background:#0078D4;color:white}.tools-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
-@media(max-width:600px){.module-tiles{grid-template-columns:1fr;gap:10px}.module-tile{min-height:135px;padding:18px}.view-heading{margin:0 0 10px}}
-
 .pill{display:inline-block;background:#dceeff;color:#005a9e;border-radius:999px;padding:4px 9px;font-size:.78rem;font-weight:700}
 .low{background:#fff0d7;color:#8b4d00}
 .muted{color:#617068;font-size:.9rem}
@@ -151,22 +141,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   <section id="appScreen" class="hidden">
     <div id="notice" class="msg hidden"></div>
 
-    <section id="homeView" class="panel">
-      <h2>Was möchtest du öffnen?</h2>
-      <p class="muted">Wähle einen Bereich. Lager und Werkzeugausgabe werden getrennt angezeigt.</p>
-      <div class="module-tiles">
-        <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
-          <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
-        </button>
-        <button id="openToolsBtn" class="module-tile tools-tile" type="button">
-          <span class="module-icon">🧰</span><strong>Werkzeuge</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
-        </button>
-      </div>
-    </section>
-
-    <div id="inventoryView" class="hidden">
-      <div class="row view-heading"><button id="inventoryHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>Lager</h2></div>
-      <div class="grid panel">
+    <div class="grid panel">
       <div class="stat"><strong id="totalProducts">0</strong><span>Artikel</span></div>
       <div class="stat"><strong id="totalUnits">0</strong><span>Gesamtbestand</span></div>
       <div class="stat"><strong id="lowCount">0</strong><span>Nachbestellen</span></div>
@@ -206,48 +181,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
       </div>
     </section>
 
-    </div> <!-- Ende Lagerbereich -->
-
-    <section class="hidden" id="toolView">
-      <div class="row view-heading"><button id="toolsHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>Werkzeuge</h2></div>
-      <section class="panel" id="toolIssueSection">
-      <h2>🧰 Werkzeugbereich</h2>
-      <p class="muted">Wähle aus, ob du Werkzeuge anlegen oder verwalten möchtest.</p>
-      <div class="row" style="margin:12px 0 18px;gap:8px;flex-wrap:wrap">
-        <button type="button" class="secondary" id="toolCreateTab">Werkzeug anlegen</button>
-        <button type="button" class="secondary" id="toolManageTab">Werkzeug verwalten</button>
-      </div>
-      <div id="toolCreatePanel">
-      <h3>Werkzeug anlegen</h3>
-      <p class="muted">Werkzeuge werden separat angelegt und erscheinen nicht als normale Lagerartikel.</p>
-      <div class="tool-form">
-        <div class="field"><label for="newToolName">Werkzeugname</label><input id="newToolName" placeholder="z. B. Bohrhammer"></div>
-        <div class="field"><label for="newToolUnit">Einheit</label><input id="newToolUnit" value="Stück" placeholder="Stück"></div>
-        <div class="field"><label for="newToolQty">Verfügbarer Bestand</label><input id="newToolQty" type="number" min="0" step="1" value="1"></div>
-        <div class="field"><label for="newToolCode">Inventar-/Seriennummer (optional)</label><input id="newToolCode" placeholder="z. B. WZ-001"></div>
-        <div class="wide"><button id="createToolBtn">Werkzeug anlegen</button><div id="toolCreateMsg" class="msg hidden"></div></div>
-      </div>
-      </div>
-      <div id="toolManagePanel" class="hidden">
-      <h3>Werkzeug verwalten</h3>
-      <p class="muted">Hier kannst du Werkzeuge anlegen, verwalten und endgültig löschen. Die Ausgabehistorie bleibt erhalten.</p>
-      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Werkzeug</th><th>Nummer</th><th>Bestand verfügbar</th><th>Status</th><th>Aktion</th></tr></thead><tbody id="toolsBody"></tbody></table></div>
-      <h3 style="margin-top:22px">Werkzeug vergeben</h3>
-      <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bei Ausgabe sinkt der Lagerbestand automatisch; bei Rückgabe steigt er wieder.</p>
-      <div class="tool-form">
-        <div class="field"><label for="toolEmployee">Mitarbeiter</label><input id="toolEmployee" placeholder="Vor- und Nachname"></div>
-        <div class="field"><label for="toolSite">Baustelle</label><input id="toolSite" placeholder="Name oder Adresse der Baustelle"></div>
-        <div class="field"><label for="toolProduct">Werkzeug / Artikel</label><select id="toolProduct"></select></div>
-        <div class="field"><label for="toolQuantity">Menge</label><input id="toolQuantity" type="number" min="0.01" step="0.01" value="1"></div>
-        <div class="field wide"><label for="toolNotes">Notiz (optional)</label><input id="toolNotes" placeholder="z. B. Seriennummer oder Zustand"></div>
-        <div class="wide"><button id="issueToolBtn">Werkzeug ausgeben</button><div id="toolIssueMsg" class="msg hidden"></div></div>
-      </div>
-      <h3 style="margin-top:22px">Werkzeug zurückbuchen / Ausgabehistorie</h3>
-      <div class="row" style="margin-bottom:10px"><button id="toolAllBtn" class="secondary smallbtn">Alle anzeigen</button><button id="toolActiveBtn" class="secondary smallbtn">Nur offene Ausgaben</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Ausgegeben</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status / Rückgabe</th></tr></thead><tbody id="toolIssuesBody"></tbody></table></div>
-      </div>
-      </section>
-    </section>
     <footer>Bestände werden in der gemeinsamen Online-Datenbank gespeichert. Buchungen sind für alle angemeldeten Nutzer sichtbar.</footer>
   </section>
 </main>
@@ -271,15 +204,11 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   let client = null;
   let currentUser = null;
   let products = [];
-  let tools = [];
   let movements = [];
   let editingId = null;
-  let editingImageData = null;
   let scanStream = null;
   let html5Scanner = null;
   let showOnlyLow = false;
-  let toolIssues = [];
-  let showOnlyActiveTools = true;
 
   const cfg = () => ({
     url: localStorage.getItem('lager_supabase_url'),
@@ -363,7 +292,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     hide('loginScreen');
     hide('configScreen');
     show('appScreen');
-    showMainView('home');
     show('headerUser');
     $('userEmail').textContent = currentUser.email || '';
     await refreshAll();
@@ -389,14 +317,12 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   async function refreshAll() {
     if (!client || !currentUser) return;
 
-    const [p, m, ti, t] = await Promise.all([
+    const [p, m] = await Promise.all([
       client.from('products').select('*').order('name').limit(1001),
       client.from('stock_movements')
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
         .order('created_at', { ascending: false })
-        .limit(50),
-      client.from('tool_issues').select('*, tools!tool_issues_tool_id_fkey(name,unit)').order('issued_at', { ascending: false }).limit(500),
-      client.from('tools').select('*').order('name').limit(1000)
+        .limit(50)
     ]);
 
     if (p.error) {
@@ -406,15 +332,8 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
 
     products = p.data || [];
     movements = m.data || [];
-    if (ti.error) { notify('Werkzeugausgaben konnten nicht geladen werden: ' + ti.error.message, true); }
-    toolIssues = ti.data || [];
-    if (t.error) { notify('Werkzeuge konnten nicht geladen werden: ' + t.error.message, true); }
-    tools = t.data || [];
-    renderTools();
 
     renderProducts();
-    renderToolIssues();
-    renderToolProductOptions();
     renderMovements();
 
     $('totalProducts').textContent = products.length;
@@ -434,113 +353,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     ).length;
   }
 
-  function renderToolProductOptions() {
-    const select = $('toolProduct');
-    if (!select) return;
-    const old = select.value;
-    select.innerHTML = '<option value="">Werkzeug auswählen…</option>' + tools.filter(p => p.active !== false).map(p =>
-      `<option value="${p.id}">${escapeHtml(p.name)} — Bestand: ${Number(p.quantity).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')}</option>`
-    ).join('');
-    if (tools.some(p => p.id === old)) select.value = old;
-  }
-
-  function renderTools() {
-    const body = $('toolsBody');
-    if (!body) return;
-    body.innerHTML = tools.map(t => `<tr><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
-  }
-
-  async function deleteTool(toolId) {
-    const tool = tools.find(t => t.id === toolId);
-    if (!tool) return;
-    const { data: issues, error: issueError } = await client.from('tool_issues').select('id, quantity, returned_quantity').eq('tool_id', toolId);
-    if (issueError) { notify('Ausgabehistorie konnte nicht geprüft werden: ' + issueError.message, true); return; }
-    const hasOpenIssue = (issues || []).some(x => Number(x.returned_quantity || 0) < Number(x.quantity || 0));
-    if (hasOpenIssue) { notify('Werkzeug kann noch nicht gelöscht werden: Es gibt offene Ausgaben. Bitte zuerst alle Rückgaben buchen.', true); return; }
-    if (!confirm(`Werkzeug „${tool.name}“ endgültig löschen? Alte Ausgaben bleiben in der Historie sichtbar, aber ohne Verknüpfung zum Werkzeug.`)) return;
-    // Historische Bezeichnung sichern, bevor die FK-Verknüpfung gelöst wird.
-    const { error: snapshotError } = await client.from('tool_issues').update({ tool_name_snapshot: tool.name, tool_unit_snapshot: tool.unit || 'Stück', tool_id: null }).eq('tool_id', toolId);
-    if (snapshotError) { notify('Historie konnte nicht vorbereitet werden. Bitte zuerst das SQL-Update ausführen. Details: ' + snapshotError.message, true); return; }
-    const { error } = await client.from('tools').delete().eq('id', toolId);
-    if (error) { notify('Werkzeug konnte nicht gelöscht werden. Details: ' + error.message, true); return; }
-    await refreshAll();
-    notify('Werkzeug wurde gelöscht. Die Ausgabehistorie bleibt erhalten.');
-  }
-
-  async function createTool() {
-    const name = $('newToolName').value.trim();
-    const unit = $('newToolUnit').value.trim() || 'Stück';
-    const quantity = Number($('newToolQty').value);
-    const code = $('newToolCode').value.trim() || null;
-    const msg = $('toolCreateMsg');
-    msg.classList.remove('hidden'); msg.classList.remove('error');
-    if (!name || !Number.isFinite(quantity) || quantity < 0) { msg.textContent = 'Bitte Namen und einen gültigen Bestand eingeben.'; msg.classList.add('error'); return; }
-    const { error } = await client.from('tools').insert({name, unit, quantity, code}).select().single();
-    if (error) { msg.textContent = 'Fehler: ' + error.message; msg.classList.add('error'); return; }
-    $('newToolName').value = ''; $('newToolCode').value = ''; $('newToolQty').value = '1';
-    msg.textContent = 'Werkzeug angelegt.';
-    await refreshAll();
-  }
-
-  function renderToolIssues() {
-    const body = $('toolIssuesBody');
-    if (!body) return;
-    const rows = toolIssues.filter(x => !showOnlyActiveTools || Number(x.returned_quantity || 0) < Number(x.quantity));
-    body.innerHTML = rows.map(x => {
-      const issued = Number(x.quantity || 0);
-      const returned = Number(x.returned_quantity || 0);
-      const outstanding = Math.max(0, issued - returned);
-      const date = x.issued_at ? new Date(x.issued_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : '–';
-      return `<tr>
-        <td data-label="Ausgegeben">${date}</td>
-        <td data-label="Mitarbeiter">${escapeHtml(x.employee_name)}</td>
-        <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
-        <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(x.notes || '')}</span></td>
-        <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
-        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-return-tool="${x.id}" data-outstanding="${outstanding}">Rückgabe buchen</button>`}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="6" class="muted">Keine passenden Werkzeugausgaben.</td></tr>';
-  }
-
-  function showToolMessage(message, error = false) {
-    const el = $('toolIssueMsg');
-    el.textContent = message;
-    el.classList.toggle('error', error);
-    el.classList.remove('hidden');
-  }
-
-  async function issueTool() {
-    const employee = $('toolEmployee').value.trim();
-    const site = $('toolSite').value.trim();
-    const productId = $('toolProduct').value;
-    const quantity = Number($('toolQuantity').value);
-    const notes = $('toolNotes').value.trim();
-    if (!employee || !site || !productId || !(quantity > 0)) {
-      showToolMessage('Bitte Mitarbeiter, Baustelle, Werkzeug und eine gültige Menge angeben.', true); return;
-    }
-    $('issueToolBtn').disabled = true;
-    const { error } = await client.rpc('issue_tool', {
-      p_tool_id: productId, p_quantity: quantity,
-      p_employee_name: employee, p_site_name: site, p_notes: notes || null
-    });
-    $('issueToolBtn').disabled = false;
-    if (error) { showToolMessage('Ausgabe fehlgeschlagen: ' + error.message, true); return; }
-    $('toolQuantity').value = '1'; $('toolNotes').value = '';
-    showToolMessage('Werkzeug wurde ausgegeben und der Lagerbestand angepasst.');
-    await refreshAll();
-  }
-
-  async function returnTool(issueId, outstanding) {
-    const raw = prompt(`Wie viele Einheiten werden zurückgegeben? Noch offen: ${outstanding}`, String(outstanding));
-    if (raw === null) return;
-    const quantity = Number(raw);
-    if (!(quantity > 0) || quantity > outstanding) { alert('Bitte eine Menge größer 0 und höchstens ' + outstanding + ' eingeben.'); return; }
-    const { error } = await client.rpc('return_tool', { p_issue_id: issueId, p_quantity: quantity });
-    if (error) { notify('Rückgabe fehlgeschlagen: ' + error.message, true); return; }
-    await refreshAll();
-    notify('Rückgabe gespeichert und Lagerbestand erhöht.');
-  }
-
   function renderProducts() {
     const q = $('search').value.toLowerCase().trim();
 
@@ -554,7 +366,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     $('productsBody').innerHTML = list.map(p => `
       <tr style="${Number(p.quantity) <= Number(p.min_quantity || 0) ? 'background:#fff8eb' : ''}">
         <td data-label="Artikel">
-          ${p.image_data ? `<img class="product-thumb" src="${p.image_data}" alt="${escapeHtml(p.name)}" loading="lazy">` : ''}
           <b>${escapeHtml(p.name)}</b><br>
           <span class="muted">${escapeHtml(p.sku || p.barcode || '')}</span>
         </td>
@@ -620,7 +431,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
 
   function articleForm(p = {}) {
     editingId = p.id || null;
-    editingImageData = p.image_data || null;
 
     openModal(editingId ? 'Artikel bearbeiten' : 'Neuen Artikel anlegen', `
       <div class="field">
@@ -637,13 +447,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         <button id="scanArticleCode" type="button" class="secondary">▦ Code mit Kamera scannen</button>
         <div id="articleReader" class="hidden" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div>
         <div id="articleScanMsg" class="muted"></div>
-      </div>
-      <div class="field">
-        <label>Artikelbild (optional)</label>
-        <input id="fImage" type="file" accept="image/*" capture="environment">
-        <p class="muted">Du kannst ein Foto aufnehmen oder ein Bild auswählen. Das Bild wird verkleinert gespeichert.</p>
-        <img id="fImagePreview" class="image-preview ${p.image_data ? '' : 'hidden'}" src="${p.image_data || ''}" alt="Artikelbild-Vorschau">
-        <button id="removeImageBtn" type="button" class="secondary smallbtn" ${p.image_data ? '' : 'disabled'}>Bild entfernen</button>
       </div>
       <div class="row">
         <div class="field" style="flex:1">
@@ -671,44 +474,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
 
     $('saveProduct').onclick = saveProduct;
     $('scanArticleCode').onclick = scanCodeForArticle;
-    $('fImage').onchange = handleArticleImage;
-    $('removeImageBtn').onclick = () => {
-      editingImageData = null;
-      $('fImage').value = '';
-      $('fImagePreview').removeAttribute('src');
-      hide('fImagePreview');
-      $('removeImageBtn').disabled = true;
-    };
-  }
-
-  function handleArticleImage() {
-    const file = $('fImage').files && $('fImage').files[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      $('formMsg').textContent = 'Bitte eine Bilddatei auswählen.';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const maxSide = 700;
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        editingImageData = canvas.toDataURL('image/jpeg', 0.72);
-        $('fImagePreview').src = editingImageData;
-        show('fImagePreview');
-        $('removeImageBtn').disabled = false;
-        $('formMsg').textContent = 'Bild ausgewählt. Bitte den Artikel speichern.';
-      };
-      img.onerror = () => { $('formMsg').textContent = 'Das Bild konnte nicht gelesen werden.'; };
-      img.src = reader.result;
-    };
-    reader.onerror = () => { $('formMsg').textContent = 'Bild konnte nicht geladen werden.'; };
-    reader.readAsDataURL(file);
   }
 
   async function scanCodeForArticle() {
@@ -778,8 +543,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
       quantity: Number($('fQty').value || 0),
       unit: $('fUnit').value.trim() || 'Stück',
       min_quantity: Number($('fMin').value || 0),
-      location: $('fLoc').value.trim() || null,
-      image_data: editingImageData
+      location: $('fLoc').value.trim() || null
     };
 
     if (data.quantity < 0 || data.min_quantity < 0) {
@@ -921,7 +685,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
       $('doBooking').disabled = true;
 
       const { error } = await client.rpc('adjust_stock', {
-        p_tool_id: productId,
+        p_product_id: productId,
         p_delta: action === 'out' ? -qty : qty,
         p_reason: $('bReason').value.trim() ||
           (action === 'out' ? 'Entnahme' : 'Wareneingang')
@@ -1181,18 +945,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     }
   }
 
-  function showMainView(view) {
-    hide('homeView'); hide('inventoryView'); hide('toolView');
-    if (view === 'inventory') show('inventoryView');
-    else if (view === 'tools') show('toolView');
-    else show('homeView');
-    window.scrollTo(0, 0);
-  }
-  $('openInventoryBtn').onclick = () => showMainView('inventory');
-  $('openToolsBtn').onclick = () => showMainView('tools');
-  $('inventoryHomeBtn').onclick = () => showMainView('home');
-  $('toolsHomeBtn').onclick = () => showMainView('home');
-
   $('qrToolsBtn').onclick = openQrTools;
   $('scanConfigQr').onclick = scanConfigQr;
 
@@ -1255,18 +1007,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     } else {
       bookingForm(p);
     }
-  });
-
-  $('issueToolBtn').onclick = issueTool;
-  $('createToolBtn').onclick = createTool;
-  $('toolCreateTab').onclick = () => { show('toolCreatePanel'); hide('toolManagePanel'); };
-  $('toolManageTab').onclick = () => { hide('toolCreatePanel'); show('toolManagePanel'); };
-  $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
-  $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
-  $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
-  $('toolIssuesBody').addEventListener('click', e => {
-    const btn = e.target.closest('button[data-return-tool]');
-    if (btn) returnTool(btn.dataset.returnTool, Number(btn.dataset.outstanding));
   });
 
   connect();
