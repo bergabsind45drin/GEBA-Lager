@@ -279,7 +279,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   let tools = [];
   let movements = [];
   let editingId = null;
-  let editingImageData = null;
+  let editingImageData = [null, null, null];
   let scanStream = null;
   let html5Scanner = null;
   let showOnlyLow = false;
@@ -625,7 +625,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
 
   function articleForm(p = {}) {
     editingId = p.id || null;
-    editingImageData = p.image_data || null;
+    editingImageData = [p.image_data || null, p.image_data_2 || null, p.image_data_3 || null];
 
     openModal(editingId ? 'Artikel bearbeiten' : 'Neuen Artikel anlegen', `
       <div class="field">
@@ -644,11 +644,16 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         <div id="articleScanMsg" class="muted"></div>
       </div>
       <div class="field">
-        <label>Artikelbild (optional)</label>
-        <input id="fImage" type="file" accept="image/*" capture="environment">
-        <p class="muted">Du kannst ein Foto aufnehmen oder ein Bild auswählen. Das Bild wird verkleinert gespeichert.</p>
-        <img id="fImagePreview" class="image-preview ${p.image_data ? '' : 'hidden'}" src="${p.image_data || ''}" alt="Artikelbild-Vorschau">
-        <button id="removeImageBtn" type="button" class="secondary smallbtn" ${p.image_data ? '' : 'disabled'}>Bild entfernen</button>
+        <label>Artikelbilder (bis zu 3, optional)</label>
+        <p class="muted">Wähle bis zu drei Fotos aus. Jedes Bild wird verkleinert und separat gespeichert.</p>
+        ${[0,1,2].map(i => `
+          <div style="border:1px solid #d7e6f5;border-radius:12px;padding:10px;margin:6px 0">
+            <label for="fImage${i+1}">Bild ${i+1}</label>
+            <input id="fImage${i+1}" type="file" accept="image/*" capture="environment">
+            <img id="fImagePreview${i+1}" class="image-preview ${editingImageData[i] ? '' : 'hidden'}" src="${editingImageData[i] || ''}" alt="Vorschau Bild ${i+1}">
+            <button id="removeImageBtn${i+1}" type="button" class="secondary smallbtn" ${editingImageData[i] ? '' : 'disabled'}>Bild ${i+1} entfernen</button>
+          </div>
+        `).join('')}
       </div>
       <div class="row">
         <div class="field" style="flex:1">
@@ -676,21 +681,25 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
 
     $('saveProduct').onclick = saveProduct;
     $('scanArticleCode').onclick = scanCodeForArticle;
-    $('fImage').onchange = handleArticleImage;
-    $('removeImageBtn').onclick = () => {
-      editingImageData = null;
-      $('fImage').value = '';
-      $('fImagePreview').removeAttribute('src');
-      hide('fImagePreview');
-      $('removeImageBtn').disabled = true;
-    };
+    [1,2,3].forEach(n => {
+      $('fImage' + n).onchange = () => handleArticleImage(n - 1);
+      $('removeImageBtn' + n).onclick = () => {
+        editingImageData[n - 1] = null;
+        $('fImage' + n).value = '';
+        $('fImagePreview' + n).removeAttribute('src');
+        hide('fImagePreview' + n);
+        $('removeImageBtn' + n).disabled = true;
+      };
+    });
   }
 
-  function handleArticleImage() {
-    const file = $('fImage').files && $('fImage').files[0];
+  function handleArticleImage(index) {
+    const input = $('fImage' + (index + 1));
+    const file = input.files && input.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       $('formMsg').textContent = 'Bitte eine Bilddatei auswählen.';
+      input.value = '';
       return;
     }
     const reader = new FileReader();
@@ -703,11 +712,11 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         canvas.width = Math.max(1, Math.round(img.width * scale));
         canvas.height = Math.max(1, Math.round(img.height * scale));
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        editingImageData = canvas.toDataURL('image/jpeg', 0.72);
-        $('fImagePreview').src = editingImageData;
-        show('fImagePreview');
-        $('removeImageBtn').disabled = false;
-        $('formMsg').textContent = 'Bild ausgewählt. Bitte den Artikel speichern.';
+        editingImageData[index] = canvas.toDataURL('image/jpeg', 0.72);
+        $('fImagePreview' + (index + 1)).src = editingImageData[index];
+        show('fImagePreview' + (index + 1));
+        $('removeImageBtn' + (index + 1)).disabled = false;
+        $('formMsg').textContent = 'Bild ' + (index + 1) + ' ausgewählt. Bitte den Artikel speichern.';
       };
       img.onerror = () => { $('formMsg').textContent = 'Das Bild konnte nicht gelesen werden.'; };
       img.src = reader.result;
@@ -784,7 +793,9 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
       unit: $('fUnit').value.trim() || 'Stück',
       min_quantity: Number($('fMin').value || 0),
       location: $('fLoc').value.trim() || null,
-      image_data: editingImageData
+      image_data: editingImageData[0],
+      image_data_2: editingImageData[1],
+      image_data_3: editingImageData[2]
     };
 
     if (data.quantity < 0 || data.min_quantity < 0) {
