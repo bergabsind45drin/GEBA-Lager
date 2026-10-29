@@ -1,0 +1,1504 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0078D4">
+<title>GEBA-Lager</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#17211d;background:#f3f8fc}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,select{font:inherit}
+button{cursor:pointer;border:0;border-radius:12px;padding:12px 15px;font-weight:700;background:#0078D4;color:white}
+button.secondary{background:#dceeff;color:#005a9e}
+button.danger{background:#a52c2c}
+button:disabled{opacity:.5;cursor:not-allowed}
+header{background:#0078D4;color:white;padding:18px max(16px,calc((100vw - 1100px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:1.25rem;margin:0}
+header small{opacity:.8}
+.wrap{max-width:1100px;margin:auto;padding:18px}
+.panel{background:white;border:1px solid #d7e6f5;border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 3px 12px #0078d410}
+.hidden{display:none!important}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:#edf6ff;padding:14px;border-radius:14px}
+.stat strong{display:block;font-size:1.5rem}
+.stat span{font-size:.85rem;color:#526b80}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.actions button{min-height:72px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row input,.row select,.field input,.field select{width:100%;min-width:0;border:1px solid #c8dced;border-radius:10px;padding:12px;background:white;color:#17211d}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-size:.9rem;font-weight:650}
+.search{flex:1;min-width:190px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:11px 8px;border-bottom:1px solid #e0ebf5;font-size:.92rem}
+th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
+.table-wrap{overflow-x:auto}
+.product-thumb{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid #d7e6f5;margin:0 0 6px;display:block;background:#f3f8fc}
+.image-preview{max-width:100%;max-height:220px;object-fit:contain;border:1px solid #d7e6f5;border-radius:12px;margin-top:8px}
+.tool-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tool-form .field{margin:0}.tool-form .wide{grid-column:1/-1}
+@media(max-width:700px){.tool-form{grid-template-columns:1fr}.tool-form .wide{grid-column:auto}}
+
+.module-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.module-tile{min-height:190px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;text-align:left;padding:22px;border-radius:18px;box-shadow:0 4px 14px #0078d41c;white-space:normal}
+.module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.inventory-tile{background:#0078D4;color:white}.tools-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
+@media(max-width:600px){.module-tiles{grid-template-columns:1fr;gap:10px}.module-tile{min-height:135px;padding:18px}.view-heading{margin:0 0 10px}}
+
+.pill{display:inline-block;background:#dceeff;color:#005a9e;border-radius:999px;padding:4px 9px;font-size:.78rem;font-weight:700}
+.low{background:#fff0d7;color:#8b4d00}
+.muted{color:#617068;font-size:.9rem}
+.msg{padding:12px;border-radius:10px;background:#edf6ff;margin:10px 0}
+.error{background:#fff0ef;color:#8d211c}
+.login{max-width:420px;margin:8vh auto}
+h2{margin:0 0 12px;font-size:1.15rem}
+.smallbtn{padding:7px 10px;border-radius:9px;font-size:.85rem}
+.modal{position:fixed;inset:0;background:#10231dcc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.modal-card{background:white;border-radius:18px;padding:20px;width:min(500px,100%);max-height:90vh;overflow:auto}
+footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
+@media print {
+  @page { size: A4 portrait; margin: 14mm; }
+  body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  #modal, #modal * { visibility: visible !important; }
+  #modal { position: static !important; display: block !important; background: #fff !important; padding: 0 !important; }
+  #modal .modal-card { width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  #modalTitle, #closeModal, #printQrBtn { display: none !important; }
+  #modalContent { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 12mm !important; }
+  #modalContent .panel { break-inside: avoid; border: 1px solid #bbb !important; box-shadow: none !important; padding: 10mm !important; }
+  #modalContent canvas, #modalContent img { max-width: 65mm !important; height: auto !important; }
+  #modalContent a { display:none !important; }
+}
+@media(max-width:700px){
+  html{font-size:16px}
+  header{padding:12px 14px;align-items:flex-start}
+  header h1{font-size:1.1rem}
+  #headerUser{gap:6px;align-items:flex-end;flex-direction:column}
+  #userEmail{max-width:48vw;overflow-wrap:anywhere;text-align:right}
+  .wrap{padding:10px}
+  .panel{padding:12px;border-radius:14px;margin-bottom:12px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .stat{padding:11px}
+  .stat strong{font-size:1.25rem}
+  .actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .actions button{min-height:58px;padding:10px;font-size:.9rem}
+  .row{gap:8px}
+  .row > h2{width:100%}
+  #search{flex-basis:100%;min-width:0}
+  #filterBtn,#refreshBtn{flex:1;min-width:0;padding:10px 8px;font-size:.85rem}
+  button{min-height:44px}
+  .smallbtn{min-height:38px;padding:8px;font-size:.82rem}
+  .table-wrap{overflow:visible;-webkit-overflow-scrolling:touch}
+  table{width:100%;min-width:0;border-collapse:separate;border-spacing:0 10px}
+  thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  tbody{display:block;width:100%}
+  tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;background:#fff!important;border:1px solid #d7e6f5;border-radius:14px;padding:12px;box-shadow:0 2px 8px #0078d408}
+  tbody td{display:block;min-width:0;padding:4px 0;border:0;font-size:.9rem;overflow-wrap:anywhere}
+  tbody td::before{content:attr(data-label);display:block;color:#617068;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
+  #productsBody td:first-child,#productsBody td:last-child{grid-column:1/-1}
+  #productsBody td:last-child{display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #e7ece8}
+  #productsBody td:last-child::before{width:100%}
+  #productsBody td:last-child button{flex:1}
+  #movementsBody td:nth-child(3){grid-column:1/-1}
+  .modal{padding:0;align-items:flex-end}
+  .modal-card{width:100%;max-height:92dvh;border-radius:18px 18px 0 0;padding:16px}
+  .field input,.field select,.row input,.row select{font-size:16px;min-height:44px}
+  .login{margin:4vh auto}
+}
+@media(max-width:380px){
+  .actions button{font-size:.82rem}
+  .stat span{font-size:.78rem}
+  #filterBtn,#refreshBtn{font-size:.78rem}
+}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>📦 GEBA-Lager</h1><small>Einfach. Schnell. Gemeinsam.</small></div>
+  <div id="headerUser" class="row hidden">
+    <small id="userEmail"></small>
+    <button id="qrToolsBtn" class="secondary smallbtn">QR-Codes</button>
+    <button id="logoutBtn" class="secondary smallbtn">Abmelden</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="configScreen" class="panel login hidden">
+    <h2>Einmalige Verbindung einrichten</h2>
+    <p class="muted">Trage die Zugangsdaten deines Supabase-Projekts ein. Sie werden nur in diesem Browser gespeichert.</p>
+    <div class="field"><label>Project URL</label><input id="cfgUrl" placeholder="https://deinprojekt.supabase.co"></div>
+    <div class="field"><label>Publishable / anon key</label><input id="cfgKey" placeholder="eyJ..."></div>
+    <button id="saveConfig" style="width:100%">Verbinden</button>
+    <button id="scanConfigQr" class="secondary" style="width:100%;margin-top:8px">▦ Supabase-QR-Code scannen</button>
+    <div id="configQrReader" class="hidden" style="width:100%;margin-top:12px;background:#111;border-radius:12px;overflow:hidden"></div>
+    <div id="configQrMsg" class="muted" style="margin-top:8px"></div>
+    <p class="muted">Die Datenbank muss zuerst mit der Datei <b>schema.sql</b> eingerichtet werden.</p>
+  </section>
+
+  <section id="loginScreen" class="panel login hidden">
+    <h2>Anmelden</h2>
+    <p class="muted">Mit deinem persönlichen Lager-Zugang anmelden.</p>
+    <div class="field"><label>E-Mail</label><input id="email" type="email" autocomplete="username" placeholder="name@firma.de"></div>
+    <div class="field"><label>Passwort</label><input id="password" type="password" autocomplete="current-password" placeholder="Passwort"></div>
+    <button id="loginBtn" style="width:100%">Anmelden</button>
+    <div id="loginMsg" class="msg hidden"></div>
+    <p class="muted">Die Nutzer legst du im Supabase-Dashboard an.</p>
+  </section>
+
+  <section id="appScreen" class="hidden">
+    <div id="notice" class="msg hidden"></div>
+
+    <section id="homeView" class="panel">
+      <h2>Was möchtest du öffnen?</h2>
+      <p class="muted">Wähle einen Bereich. Lager und Werkzeugausgabe werden getrennt angezeigt.</p>
+      <div class="module-tiles">
+        <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
+          <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
+        </button>
+        <button id="openToolsBtn" class="module-tile tools-tile" type="button">
+          <span class="module-icon">🧰</span><strong>Werkzeuge</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
+        </button>
+      </div>
+    </section>
+
+    <div id="inventoryView" class="hidden">
+      <div class="row view-heading"><button id="inventoryHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>Lager</h2></div>
+      <div class="actions" style="margin-top:12px">
+        <button type="button" id="inventoryStockTab">Lagerbestand</button>
+        <button type="button" id="inventoryMovementsTab" class="secondary">Letzte Buchungen</button>
+      </div>
+      <div id="inventoryStockPanel">
+      <section id="stockCartPanel" class="panel hidden" style="border:2px solid var(--primary,#2563eb);margin-bottom:16px">
+        <div class="row view-heading"><h2 style="margin:0">🛒 Warenkorb – Lagerausgabe</h2><button type="button" id="closeStockCartBtn" class="secondary smallbtn">Schließen ✕</button></div>
+        <p class="muted">Füge normale Lagerartikel per Auswahl oder Barcode-Scan hinzu. Mitarbeiter, Projekt und Notiz gelten für alle Artikel.</p>
+        <div class="tool-form">
+          <div class="field"><label for="stockCartEmployee">Handwerker / Mitarbeiter</label><input id="stockCartEmployee" placeholder="Vor- und Nachname"></div>
+          <div class="field"><label for="stockCartProject">Projekt / Baustelle</label><input id="stockCartProject" placeholder="z. B. Baustelle Müller"></div>
+          <div class="field"><label for="stockCartProduct">Artikel auswählen</label><select id="stockCartProduct"></select></div>
+          <div class="field"><label for="stockCartQuantity">Menge</label><input id="stockCartQuantity" type="number" min="0.01" step="0.01" value="1"></div>
+          <div class="field wide"><label for="stockCartNotes">Gemeinsame Notiz (optional)</label><input id="stockCartNotes" placeholder="z. B. Badezimmer Sanierung"></div>
+          <div class="wide row" style="flex-wrap:wrap"><button type="button" id="addStockCartItemBtn">＋ Artikel hinzufügen</button><button type="button" id="scanStockCartBtn" class="secondary">▦ Artikel scannen</button></div>
+          <div class="wide"><label for="stockCartBarcode">Barcode / Artikelnummer manuell</label><div class="row"><input id="stockCartBarcode" placeholder="Barcode oder Artikelnummer eingeben"><button type="button" id="findStockCartBarcodeBtn" class="secondary">Suchen & hinzufügen</button></div></div>
+        </div>
+        <h3>Artikel im Warenkorb</h3>
+        <div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Bestand</th><th>Menge</th><th>Aktion</th></tr></thead><tbody id="stockCartBody"></tbody></table></div>
+        <div class="row" style="margin-top:12px;flex-wrap:wrap"><button type="button" id="clearStockCartBtn" class="secondary smallbtn">Warenkorb leeren</button><button type="button" id="checkoutStockCartBtn">Gesamte Lagerausgabe buchen</button></div>
+        <div id="stockCartMsg" class="msg hidden"></div>
+      </section>
+      <div class="grid panel">
+      <div class="stat"><strong id="totalProducts">0</strong><span>Artikel</span></div>
+      <div class="stat"><strong id="totalUnits">0</strong><span>Gesamtbestand</span></div>
+      <div class="stat"><strong id="lowCount">0</strong><span>Nachbestellen</span></div>
+      <div class="stat"><strong id="movementCount">0</strong><span>Buchungen heute</span></div>
+    </div>
+
+    <div class="actions">
+      <button id="scanBtn">▦ Scannen / Buchen</button>
+      <button id="openStockCartBtn" class="secondary">🛒 Warenkorb <span id="stockCartCount">0</span></button>
+      <button id="addBtn" class="secondary">＋ Artikel anlegen</button>
+      <button id="importBtn" class="secondary">⇧ CSV importieren</button>
+      <button id="exportBtn" class="secondary">⇩ CSV exportieren</button>
+    </div>
+
+    <section class="panel">
+      <div class="row" style="margin-bottom:12px">
+        <h2 style="margin:0">Lagerbestand</h2>
+        <input id="search" class="search" placeholder="Name, Artikelnummer, Barcode oder Lagerort suchen…">
+        <button id="filterBtn" class="secondary">Nur Nachbestellen</button>
+        <button id="refreshBtn" class="secondary">Aktualisieren</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Artikel</th><th>Bestand</th><th>Einheit</th><th>Lagerort</th><th>Status</th><th>Aktionen</th></tr></thead>
+          <tbody id="productsBody"></tbody>
+        </table>
+      </div>
+      <p class="muted">Tipp: Bei fehlendem Barcode kannst du Artikelnummern auch manuell eingeben.</p>
+    </section>
+
+      </div> <!-- Ende Lagerbestand-Ansicht -->
+      <section class="panel hidden" id="inventoryMovementsPanel">
+        <h2>Letzte Buchungen vom Lager</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Zeit</th><th>Artikel</th><th>Änderung</th><th>Nutzer</th></tr></thead>
+            <tbody id="movementsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div> <!-- Ende Lagerbereich -->
+
+    <section class="hidden" id="toolView">
+      <div class="row view-heading"><button id="toolsHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>Werkzeuge</h2></div>
+      <section class="panel" id="toolIssueSection">
+      <h2>🧰 Werkzeugbereich</h2>
+      <p class="muted">Wähle aus, ob du Werkzeuge anlegen oder verwalten möchtest.</p>
+      <div class="row" style="margin:12px 0 18px;gap:8px;flex-wrap:wrap">
+        <button type="button" class="secondary" id="toolCreateTab">Werkzeug anlegen</button>
+        <button type="button" class="secondary" id="toolManageTab">Werkzeug verwalten</button>
+      </div>
+      <div id="toolCreatePanel">
+      <h3>Werkzeug anlegen</h3>
+      <p class="muted">Werkzeuge werden separat angelegt und erscheinen nicht als normale Lagerartikel.</p>
+      <div class="tool-form">
+        <div class="field"><label for="newToolName">Werkzeugname</label><input id="newToolName" placeholder="z. B. Bohrhammer"></div>
+        <div class="field"><label for="newToolUnit">Einheit</label><input id="newToolUnit" value="Stück" placeholder="Stück"></div>
+        <div class="field"><label for="newToolQty">Verfügbarer Bestand</label><input id="newToolQty" type="number" min="0" step="1" value="1"></div>
+        <div class="field"><label for="newToolCode">Inventar-/Seriennummer (optional)</label><input id="newToolCode" placeholder="z. B. WZ-001"></div>
+        <div class="wide"><button id="createToolBtn">Werkzeug anlegen</button><div id="toolCreateMsg" class="msg hidden"></div></div>
+      </div>
+      </div>
+      <div id="toolManagePanel" class="hidden">
+      <h3>Werkzeug verwalten</h3>
+      <p class="muted">Hier kannst du Werkzeuge anlegen, verwalten und endgültig löschen. Die Ausgabehistorie bleibt erhalten.</p>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Werkzeug</th><th>Nummer</th><th>Bestand verfügbar</th><th>Status</th><th>Aktion</th></tr></thead><tbody id="toolsBody"></tbody></table></div>
+      <h3 style="margin-top:22px">Werkzeug vergeben</h3>
+      <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bei Ausgabe sinkt der Lagerbestand automatisch; bei Rückgabe steigt er wieder.</p>
+      <div class="tool-form">
+        <div class="field"><label for="toolEmployee">Mitarbeiter</label><input id="toolEmployee" placeholder="Vor- und Nachname"></div>
+        <div class="field"><label for="toolSite">Baustelle</label><input id="toolSite" placeholder="Name oder Adresse der Baustelle"></div>
+        <div class="field"><label for="toolProduct">Werkzeug / Artikel</label><select id="toolProduct"></select></div>
+        <div class="field"><label for="toolQuantity">Menge</label><input id="toolQuantity" type="number" min="0.01" step="0.01" value="1"></div>
+        <div class="field wide"><label for="toolNotes">Notiz (optional)</label><input id="toolNotes" placeholder="z. B. Seriennummer oder Zustand"></div>
+        <div class="wide"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button></div>
+      </div>
+      <h3 style="margin-top:18px">🛒 Sammelausgabe – Warenkorb</h3>
+      <p class="muted">Mitarbeiter, Baustelle und Notiz oben gelten für alle Artikel im Warenkorb.</p>
+      <div class="table-wrap"><table><thead><tr><th>Werkzeug / Artikel</th><th>Menge</th><th>Aktion</th></tr></thead><tbody id="toolCartBody"></tbody></table></div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button type="button" id="clearToolCartBtn" class="secondary smallbtn">Warenkorb leeren</button><button type="button" id="checkoutToolCartBtn">Gesamte Ausgabe buchen</button></div>
+      <div id="toolIssueMsg" class="msg hidden"></div>
+      <h3 style="margin-top:22px">Werkzeug zurückbuchen / Ausgabehistorie</h3>
+      <div class="row" style="margin-bottom:10px"><button id="toolAllBtn" class="secondary smallbtn">Alle anzeigen</button><button id="toolActiveBtn" class="secondary smallbtn">Nur offene Ausgaben</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Ausgegeben</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status / Rückgabe</th></tr></thead><tbody id="toolIssuesBody"></tbody></table></div>
+      </div>
+      </section>
+    </section>
+    <footer>Bestände werden in der gemeinsamen Online-Datenbank gespeichert. Buchungen sind für alle angemeldeten Nutzer sichtbar.</footer>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="modalTitle">Aktion</h2>
+      <button id="closeModal" class="secondary smallbtn">Schließen</button>
+    </div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<input id="csvFile" type="file" accept=".csv,text/csv" class="hidden">
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  let client = null;
+  let currentUser = null;
+  let products = [];
+  let tools = [];
+  let movements = [];
+  let editingId = null;
+  let editingImageData = [null, null, null];
+  let scanStream = null;
+  let html5Scanner = null;
+  let showOnlyLow = false;
+  let toolIssues = [];
+  let toolCart = [];
+  let stockCart = [];
+  let showOnlyActiveTools = true;
+
+  const cfg = () => ({
+    url: localStorage.getItem('lager_supabase_url'),
+    key: localStorage.getItem('lager_supabase_key')
+  });
+
+  function show(id) {
+    $(id).classList.remove('hidden');
+  }
+
+  function hide(id) {
+    $(id).classList.add('hidden');
+  }
+
+  function notify(message, error = false) {
+    $('notice').textContent = message;
+    $('notice').classList.toggle('error', error);
+    show('notice');
+    setTimeout(() => hide('notice'), 6500);
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[c]));
+  }
+
+  function connect() {
+    const c = cfg();
+
+    if (!c.url || !c.key) {
+      show('configScreen');
+      hide('loginScreen');
+      hide('appScreen');
+      return;
+    }
+
+    try {
+      client = window.supabase.createClient(c.url, c.key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+
+      hide('configScreen');
+
+      client.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          currentUser = data.session.user;
+          enterApp();
+        } else {
+          show('loginScreen');
+          hide('appScreen');
+        }
+      });
+
+      client.auth.onAuthStateChange((_event, session) => {
+        if (session) {
+          currentUser = session.user;
+          enterApp();
+        } else {
+          currentUser = null;
+          hide('appScreen');
+          show('loginScreen');
+          hide('headerUser');
+        }
+      });
+    } catch (e) {
+      show('configScreen');
+      notify('Verbindungseinstellungen prüfen.', true);
+    }
+  }
+
+  async function enterApp() {
+    hide('loginScreen');
+    hide('configScreen');
+    show('appScreen');
+    showMainView('home');
+    show('headerUser');
+    $('userEmail').textContent = currentUser.email || '';
+    await refreshAll();
+  }
+
+  async function login() {
+    $('loginMsg').textContent = 'Anmeldung läuft…';
+    show('loginMsg');
+
+    const { error } = await client.auth.signInWithPassword({
+      email: $('email').value.trim(),
+      password: $('password').value
+    });
+
+    if (error) {
+      $('loginMsg').textContent = error.message;
+      $('loginMsg').classList.add('error');
+    } else {
+      hide('loginMsg');
+    }
+  }
+
+  async function refreshAll() {
+    if (!client || !currentUser) return;
+
+    const [p, m, ti, t] = await Promise.all([
+      client.from('products').select('*').order('name').limit(1001),
+      client.from('stock_movements')
+        .select('id,product_id,delta,reason,created_at,user_email,products(name)')
+        .order('created_at', { ascending: false })
+        .limit(50),
+      client.from('tool_issues').select('*, tools!tool_issues_tool_id_fkey(name,unit)').order('issued_at', { ascending: false }).limit(500),
+      client.from('tools').select('*').order('name').limit(1000)
+    ]);
+
+    if (p.error) {
+      notify('Artikel konnten nicht geladen werden: ' + p.error.message, true);
+      return;
+    }
+
+    products = p.data || [];
+    movements = m.data || [];
+    if (ti.error) { notify('Werkzeugausgaben konnten nicht geladen werden: ' + ti.error.message, true); }
+    toolIssues = ti.data || [];
+    if (t.error) { notify('Werkzeuge konnten nicht geladen werden: ' + t.error.message, true); }
+    tools = t.data || [];
+    renderTools();
+
+    renderProducts();
+    renderStockCartOptions();
+    renderStockCart();
+    renderToolIssues();
+    renderToolProductOptions();
+    renderMovements();
+
+    $('totalProducts').textContent = products.length;
+    $('totalUnits').textContent = products
+      .reduce((n, p) => n + Number(p.quantity || 0), 0)
+      .toLocaleString('de-DE');
+
+    $('lowCount').textContent = products.filter(
+      p => Number(p.quantity) <= Number(p.min_quantity || 0)
+    ).length;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    $('movementCount').textContent = movements.filter(
+      m => new Date(m.created_at) >= today
+    ).length;
+  }
+
+  function renderToolProductOptions() {
+    const select = $('toolProduct');
+    if (!select) return;
+    const old = select.value;
+    select.innerHTML = '<option value="">Werkzeug auswählen…</option>' + tools.filter(p => p.active !== false).map(p =>
+      `<option value="${p.id}">${escapeHtml(p.name)} — Bestand: ${Number(p.quantity).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')}</option>`
+    ).join('');
+    if (tools.some(p => p.id === old)) select.value = old;
+  }
+
+  function renderTools() {
+    const body = $('toolsBody');
+    if (!body) return;
+    body.innerHTML = tools.map(t => `<tr><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
+  }
+
+  async function deleteTool(toolId) {
+    const tool = tools.find(t => t.id === toolId);
+    if (!tool) return;
+    const { data: issues, error: issueError } = await client.from('tool_issues').select('id, quantity, returned_quantity').eq('tool_id', toolId);
+    if (issueError) { notify('Ausgabehistorie konnte nicht geprüft werden: ' + issueError.message, true); return; }
+    const hasOpenIssue = (issues || []).some(x => Number(x.returned_quantity || 0) < Number(x.quantity || 0));
+    if (hasOpenIssue) { notify('Werkzeug kann noch nicht gelöscht werden: Es gibt offene Ausgaben. Bitte zuerst alle Rückgaben buchen.', true); return; }
+    if (!confirm(`Werkzeug „${tool.name}“ endgültig löschen? Alte Ausgaben bleiben in der Historie sichtbar, aber ohne Verknüpfung zum Werkzeug.`)) return;
+    // Historische Bezeichnung sichern, bevor die FK-Verknüpfung gelöst wird.
+    const { error: snapshotError } = await client.from('tool_issues').update({ tool_name_snapshot: tool.name, tool_unit_snapshot: tool.unit || 'Stück', tool_id: null }).eq('tool_id', toolId);
+    if (snapshotError) { notify('Historie konnte nicht vorbereitet werden. Bitte zuerst das SQL-Update ausführen. Details: ' + snapshotError.message, true); return; }
+    const { error } = await client.from('tools').delete().eq('id', toolId);
+    if (error) { notify('Werkzeug konnte nicht gelöscht werden. Details: ' + error.message, true); return; }
+    await refreshAll();
+    notify('Werkzeug wurde gelöscht. Die Ausgabehistorie bleibt erhalten.');
+  }
+
+  async function createTool() {
+    const name = $('newToolName').value.trim();
+    const unit = $('newToolUnit').value.trim() || 'Stück';
+    const quantity = Number($('newToolQty').value);
+    const code = $('newToolCode').value.trim() || null;
+    const msg = $('toolCreateMsg');
+    msg.classList.remove('hidden'); msg.classList.remove('error');
+    if (!name || !Number.isFinite(quantity) || quantity < 0) { msg.textContent = 'Bitte Namen und einen gültigen Bestand eingeben.'; msg.classList.add('error'); return; }
+    const { error } = await client.from('tools').insert({name, unit, quantity, code}).select().single();
+    if (error) { msg.textContent = 'Fehler: ' + error.message; msg.classList.add('error'); return; }
+    $('newToolName').value = ''; $('newToolCode').value = ''; $('newToolQty').value = '1';
+    msg.textContent = 'Werkzeug angelegt.';
+    await refreshAll();
+  }
+
+  function renderToolIssues() {
+    const body = $('toolIssuesBody');
+    if (!body) return;
+    const rows = toolIssues.filter(x => !showOnlyActiveTools || Number(x.returned_quantity || 0) < Number(x.quantity));
+    body.innerHTML = rows.map(x => {
+      const issued = Number(x.quantity || 0);
+      const returned = Number(x.returned_quantity || 0);
+      const outstanding = Math.max(0, issued - returned);
+      const date = x.issued_at ? new Date(x.issued_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : '–';
+      return `<tr>
+        <td data-label="Ausgegeben">${date}</td>
+        <td data-label="Mitarbeiter">${escapeHtml(x.employee_name)}</td>
+        <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
+        <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(x.notes || '')}</span></td>
+        <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
+        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-return-tool="${x.id}" data-outstanding="${outstanding}">Rückgabe buchen</button>`}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="muted">Keine passenden Werkzeugausgaben.</td></tr>';
+  }
+
+  function showToolMessage(message, error = false) {
+    const el = $('toolIssueMsg');
+    el.textContent = message;
+    el.classList.toggle('error', error);
+    el.classList.remove('hidden');
+  }
+
+  function renderToolCart() {
+    const body = $('toolCartBody');
+    if (!body) return;
+    body.innerHTML = toolCart.map((item, index) => {
+      const tool = tools.find(t => t.id === item.toolId);
+      return `<tr>
+        <td>${escapeHtml(tool?.name || 'Unbekannter Artikel')}<br><span class="muted">${escapeHtml(tool?.code || '')}</span></td>
+        <td><input type="number" min="0.01" step="0.01" value="${item.quantity}" data-cart-qty="${index}" style="max-width:110px"></td>
+        <td><button type="button" class="secondary smallbtn" data-cart-remove="${index}">Entfernen</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="3" class="muted">Der Warenkorb ist leer. Wähle oben einen Artikel und füge ihn hinzu.</td></tr>';
+  }
+
+  function addToolToCart() {
+    const toolId = $('toolProduct').value;
+    const quantity = Number($('toolQuantity').value);
+    if (!toolId || !(quantity > 0)) {
+      showToolMessage('Bitte Artikel und eine gültige Menge auswählen.', true); return;
+    }
+    const existing = toolCart.find(x => x.toolId === toolId);
+    if (existing) existing.quantity += quantity;
+    else toolCart.push({ toolId, quantity });
+    $('toolQuantity').value = '1';
+    renderToolCart();
+    showToolMessage('Artikel wurde zum Warenkorb hinzugefügt.');
+  }
+
+  async function checkoutToolCart() {
+    const employee = $('toolEmployee').value.trim();
+    const site = $('toolSite').value.trim();
+    const notes = $('toolNotes').value.trim();
+    if (!employee || !site) {
+      showToolMessage('Bitte Mitarbeiter und Baustelle/Projekt eintragen.', true); return;
+    }
+    if (!toolCart.length) {
+      showToolMessage('Der Warenkorb ist leer. Bitte zuerst Artikel hinzufügen.', true); return;
+    }
+    for (const item of toolCart) {
+      if (!(Number(item.quantity) > 0)) {
+        showToolMessage('Bitte bei allen Artikeln eine gültige Menge eintragen.', true); return;
+      }
+      const tool = tools.find(t => t.id === item.toolId);
+      if (!tool || Number(item.quantity) > Number(tool.quantity || 0)) {
+        showToolMessage(`Nicht genügend Bestand für „${tool?.name || 'Artikel'}“. Verfügbar: ${tool?.quantity ?? 0}.`, true); return;
+      }
+    }
+
+    const items = toolCart.map(x => ({ tool_id: x.toolId, quantity: Number(x.quantity) }));
+    $('checkoutToolCartBtn').disabled = true;
+    $('addToolCartBtn').disabled = true;
+    const { error } = await client.rpc('issue_tools_batch', {
+      p_items: items,
+      p_employee_name: employee,
+      p_site_name: site,
+      p_notes: notes || null
+    });
+    $('checkoutToolCartBtn').disabled = false;
+    $('addToolCartBtn').disabled = false;
+    if (error) {
+      showToolMessage('Sammelausgabe fehlgeschlagen: ' + error.message, true);
+      return;
+    }
+    toolCart = [];
+    $('toolQuantity').value = '1';
+    $('toolNotes').value = '';
+    renderToolCart();
+    showToolMessage('Alle Artikel wurden gemeinsam ausgegeben. Mitarbeiter, Baustelle und Notiz wurden für jeden Eintrag übernommen.');
+    await refreshAll();
+  }
+
+  async function returnTool(issueId, outstanding) {
+    const raw = prompt(`Wie viele Einheiten werden zurückgegeben? Noch offen: ${outstanding}`, String(outstanding));
+    if (raw === null) return;
+    const quantity = Number(raw);
+    if (!(quantity > 0) || quantity > outstanding) { alert('Bitte eine Menge größer 0 und höchstens ' + outstanding + ' eingeben.'); return; }
+    const { error } = await client.rpc('return_tool', { p_issue_id: issueId, p_quantity: quantity });
+    if (error) { notify('Rückgabe fehlgeschlagen: ' + error.message, true); return; }
+    await refreshAll();
+    notify('Rückgabe gespeichert und Lagerbestand erhöht.');
+  }
+
+  function renderStockCartOptions(selectedId = '') {
+    const select = $('stockCartProduct');
+    if (!select) return;
+    select.innerHTML = '<option value="">Artikel auswählen…</option>' + products.map(p => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)} — Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')} (${escapeHtml(p.sku || p.barcode || 'ohne Nummer')})</option>`).join('');
+  }
+
+  function showStockCartMessage(message, error = false) {
+    const el = $('stockCartMsg');
+    el.textContent = message;
+    el.classList.toggle('error', error);
+    el.classList.remove('hidden');
+  }
+
+  function renderStockCart() {
+    const body = $('stockCartBody');
+    if (!body) return;
+    $('stockCartCount').textContent = String(stockCart.reduce((sum, item) => sum + 1, 0));
+    body.innerHTML = stockCart.map((item, index) => {
+      const product = products.find(p => p.id === item.productId);
+      return `<tr><td>${escapeHtml(product?.name || 'Unbekannter Artikel')}<br><span class="muted">${escapeHtml(product?.sku || product?.barcode || '')}</span></td><td>${Number(product?.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(product?.unit || 'Stück')}</td><td><input type="number" min="0.01" step="0.01" value="${item.quantity}" data-stock-cart-qty="${index}" style="max-width:110px"></td><td><button type="button" class="secondary smallbtn" data-stock-cart-remove="${index}">Entfernen</button></td></tr>`;
+    }).join('') || '<tr><td colspan="4" class="muted">Der Warenkorb ist leer. Wähle einen Artikel aus oder scanne den Barcode.</td></tr>';
+  }
+
+  function addStockProductToCart(product, quantity = Number($('stockCartQuantity').value)) {
+    if (!product) { showStockCartMessage('Artikel wurde nicht gefunden. Bitte Auswahl oder Barcode prüfen.', true); return; }
+    if (!(quantity > 0)) { showStockCartMessage('Bitte eine gültige Menge eingeben.', true); return; }
+    const existing = stockCart.find(item => item.productId === product.id);
+    if (existing) existing.quantity += quantity;
+    else stockCart.push({ productId: product.id, quantity });
+    $('stockCartQuantity').value = '1';
+    $('stockCartBarcode').value = '';
+    renderStockCart();
+    showStockCartMessage(`${product.name} wurde zum Warenkorb hinzugefügt.`);
+  }
+
+  function findStockProductByCode(code) {
+    const value = String(code || '').trim().toLowerCase();
+    return products.find(p => [p.barcode, p.sku, p.name].some(v => String(v || '').trim().toLowerCase() === value));
+  }
+
+  async function scanStockCartItem() {
+    openModal('Artikel für Warenkorb scannen', `<p class="muted">Halte den Barcode des Lagerartikels vor die Kamera oder gib ihn unten ein.</p><div id="stockCartReader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div><div class="field" style="margin-top:12px"><label>Barcode / Artikelnummer</label><input id="stockCartScanCode" placeholder="Code hier eingeben"></div><button id="stockCartScanContinue" style="width:100%">Artikel zum Warenkorb hinzufügen</button><div id="stockCartScanMsg" class="muted" style="margin-top:8px"></div>`);
+    const addCode = code => {
+      const product = findStockProductByCode(code);
+      if (!product) { $('stockCartScanMsg').textContent = 'Kein passender Artikel gefunden. Prüfe den Code oder wähle den Artikel manuell.'; return; }
+      closeModal();
+      show('stockCartPanel');
+      addStockProductToCart(product, Number($('stockCartQuantity').value));
+    };
+    $('stockCartScanContinue').onclick = () => addCode($('stockCartScanCode').value);
+    if (!navigator.mediaDevices?.getUserMedia || !window.Html5Qrcode) {
+      $('stockCartScanMsg').textContent = 'Kamera-Scanner nicht verfügbar. Bitte den Code manuell eingeben.';
+      return;
+    }
+    try {
+      html5Scanner = new Html5Qrcode('stockCartReader');
+      await html5Scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 }, async decodedText => {
+        const scanner = html5Scanner; html5Scanner = null;
+        try { await scanner.stop(); scanner.clear(); } catch (e) {}
+        addCode(decodedText);
+      }, () => {});
+    } catch (e) {
+      $('stockCartScanMsg').textContent = 'Kamera konnte nicht starten. Gib den Barcode bitte manuell ein.';
+    }
+  }
+
+  async function checkoutStockCart() {
+    const employee = $('stockCartEmployee').value.trim();
+    const project = $('stockCartProject').value.trim();
+    const notes = $('stockCartNotes').value.trim();
+    if (!employee || !project) { showStockCartMessage('Bitte Handwerker/Mitarbeiter und Projekt/Baustelle eintragen.', true); return; }
+    if (!stockCart.length) { showStockCartMessage('Der Warenkorb ist leer.', true); return; }
+    for (const item of stockCart) {
+      const product = products.find(p => p.id === item.productId);
+      if (!(Number(item.quantity) > 0) || !product) { showStockCartMessage('Bitte alle Artikel und Mengen prüfen.', true); return; }
+      if (Number(item.quantity) > Number(product.quantity || 0)) { showStockCartMessage(`Nicht genügend Bestand für „${product.name}“. Verfügbar: ${product.quantity}.`, true); return; }
+    }
+    const reason = `Sammelausgabe an ${employee} | Projekt: ${project}${notes ? ' | Notiz: ' + notes : ''}`;
+    const items = stockCart.map(item => ({ product_id: item.productId, quantity: Number(item.quantity) }));
+    $('checkoutStockCartBtn').disabled = true;
+    const { error } = await client.rpc('bulk_adjust_stock', { p_items: items, p_reason: reason });
+    $('checkoutStockCartBtn').disabled = false;
+    if (error) { showStockCartMessage('Sammelausgabe fehlgeschlagen: ' + error.message, true); return; }
+    stockCart = [];
+    renderStockCart();
+    showStockCartMessage('Sammelausgabe gebucht. Bestand und Buchungshistorie wurden aktualisiert.');
+    await refreshAll();
+  }
+
+  function renderProducts() {
+    const q = $('search').value.toLowerCase().trim();
+
+    const list = products.filter(p =>
+      (!showOnlyLow || Number(p.quantity) <= Number(p.min_quantity || 0)) &&
+      [p.name, p.sku, p.barcode, p.location].some(v =>
+        String(v || '').toLowerCase().includes(q)
+      )
+    );
+
+    $('productsBody').innerHTML = list.map(p => `
+      <tr style="${Number(p.quantity) <= Number(p.min_quantity || 0) ? 'background:#fff8eb' : ''}">
+        <td data-label="Artikel">
+          ${p.image_data ? `<img class="product-thumb" src="${p.image_data}" alt="${escapeHtml(p.name)}" loading="lazy">` : ''}
+          <b>${escapeHtml(p.name)}</b><br>
+          <span class="muted">${escapeHtml(p.sku || p.barcode || '')}</span>
+        </td>
+        <td data-label="Bestand"><b>${Number(p.quantity).toLocaleString('de-DE')}</b></td>
+        <td data-label="Einheit">${escapeHtml(p.unit || 'Stück')}</td>
+        <td data-label="Lagerort">${escapeHtml(p.location || '–')}</td>
+        <td data-label="Status">
+          ${Number(p.quantity) <= Number(p.min_quantity || 0)
+            ? '<span class="pill low">Nachbestellen</span>'
+            : '<span class="pill">OK</span>'}
+        </td>
+        <td data-label="Aktionen">
+          <button class="secondary smallbtn" data-action="book" data-id="${p.id}">Buchen</button>
+          <button class="secondary smallbtn" data-action="edit" data-id="${p.id}">✎</button>
+          <button class="danger smallbtn" data-action="delete" data-id="${p.id}">Löschen</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="muted">Keine Artikel gefunden.</td></tr>';
+  }
+
+  function renderMovements() {
+    $('movementsBody').innerHTML = movements.map(m => `
+      <tr>
+        <td data-label="Zeit">${new Date(m.created_at).toLocaleString('de-DE', {
+          dateStyle: 'short',
+          timeStyle: 'short'
+        })}</td>
+        <td data-label="Artikel">${escapeHtml(m.products?.name || 'Artikel')}</td>
+        <td data-label="Änderung">
+          <b style="color:${m.delta < 0 ? '#a52c2c' : '#267043'}">
+            ${m.delta > 0 ? '+' : ''}${Number(m.delta)}
+          </b>
+          <span class="muted">${escapeHtml(m.reason || '')}</span>
+        </td>
+        <td data-label="Nutzer">${escapeHtml(m.user_email || 'Nutzer')}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" class="muted">Noch keine Buchungen.</td></tr>';
+  }
+
+  function openModal(title, html) {
+    $('modalTitle').textContent = title;
+    $('modalContent').innerHTML = html;
+    show('modal');
+  }
+
+  function closeModal() {
+    hide('modal');
+
+    if (scanStream) {
+      scanStream.getTracks().forEach(t => t.stop());
+      scanStream = null;
+    }
+
+    if (html5Scanner) {
+      const old = html5Scanner;
+      html5Scanner = null;
+
+      try {
+        old.stop().then(() => old.clear()).catch(() => {});
+      } catch (e) {}
+    }
+  }
+
+  function articleForm(p = {}) {
+    editingId = p.id || null;
+    editingImageData = [p.image_data || null, p.image_data_2 || null, p.image_data_3 || null];
+
+    openModal(editingId ? 'Artikel bearbeiten' : 'Neuen Artikel anlegen', `
+      <div class="field">
+        <label>Artikelname *</label>
+        <input id="fName" value="${escapeHtml(p.name || '')}" placeholder="z. B. NYM-J 3×1,5">
+      </div>
+      <div class="field">
+        <label>Artikelnummer (optional)</label>
+        <input id="fSku" value="${escapeHtml(p.sku || '')}" placeholder="z. B. EL-001">
+      </div>
+      <div class="field">
+        <label>Barcode / QR-Code (optional)</label>
+        <input id="fBarcode" value="${escapeHtml(p.barcode || '')}" placeholder="Code scannen oder manuell eingeben">
+        <button id="scanArticleCode" type="button" class="secondary">▦ Code mit Kamera scannen</button>
+        <div id="articleReader" class="hidden" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div>
+        <div id="articleScanMsg" class="muted"></div>
+      </div>
+      <div class="field">
+        <label>Artikelbilder (bis zu 3, optional)</label>
+        <p class="muted">Wähle bis zu drei Fotos aus. Jedes Bild wird verkleinert und separat gespeichert.</p>
+        ${[0,1,2].map(i => `
+          <div style="border:1px solid #d7e6f5;border-radius:12px;padding:10px;margin:6px 0">
+            <label for="fImage${i+1}">Bild ${i+1}</label>
+            <input id="fImage${i+1}" type="file" accept="image/*" capture="environment">
+            <img id="fImagePreview${i+1}" class="image-preview ${editingImageData[i] ? '' : 'hidden'}" src="${editingImageData[i] || ''}" alt="Vorschau Bild ${i+1}">
+            <button id="removeImageBtn${i+1}" type="button" class="secondary smallbtn" ${editingImageData[i] ? '' : 'disabled'}>Bild ${i+1} entfernen</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Bestand</label>
+          <input id="fQty" type="number" min="0" step="any" value="${Number(p.quantity || 0)}">
+        </div>
+        <div class="field" style="flex:1">
+          <label>Einheit</label>
+          <input id="fUnit" value="${escapeHtml(p.unit || 'Stück')}" placeholder="Stück, m, Pack">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Mindestbestand</label>
+          <input id="fMin" type="number" min="0" step="any" value="${Number(p.min_quantity || 0)}">
+        </div>
+        <div class="field" style="flex:1">
+          <label>Lagerort</label>
+          <input id="fLoc" value="${escapeHtml(p.location || '')}" placeholder="Regal A, Fach 2">
+        </div>
+      </div>
+      <button id="saveProduct" style="width:100%">Speichern</button>
+      <div id="formMsg" class="muted" style="margin-top:8px"></div>
+    `);
+
+    $('saveProduct').onclick = saveProduct;
+    $('scanArticleCode').onclick = scanCodeForArticle;
+    [1,2,3].forEach(n => {
+      $('fImage' + n).onchange = () => handleArticleImage(n - 1);
+      $('removeImageBtn' + n).onclick = () => {
+        editingImageData[n - 1] = null;
+        $('fImage' + n).value = '';
+        $('fImagePreview' + n).removeAttribute('src');
+        hide('fImagePreview' + n);
+        $('removeImageBtn' + n).disabled = true;
+      };
+    });
+  }
+
+  function handleArticleImage(index) {
+    const input = $('fImage' + (index + 1));
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      $('formMsg').textContent = 'Bitte eine Bilddatei auswählen.';
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 700;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        editingImageData[index] = canvas.toDataURL('image/jpeg', 0.72);
+        $('fImagePreview' + (index + 1)).src = editingImageData[index];
+        show('fImagePreview' + (index + 1));
+        $('removeImageBtn' + (index + 1)).disabled = false;
+        $('formMsg').textContent = 'Bild ' + (index + 1) + ' ausgewählt. Bitte den Artikel speichern.';
+      };
+      img.onerror = () => { $('formMsg').textContent = 'Das Bild konnte nicht gelesen werden.'; };
+      img.src = reader.result;
+    };
+    reader.onerror = () => { $('formMsg').textContent = 'Bild konnte nicht geladen werden.'; };
+    reader.readAsDataURL(file);
+  }
+
+  async function scanCodeForArticle() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('articleScanMsg').textContent = 'Dieser Browser kann die Kamera nicht öffnen. Bitte den Code manuell eingeben.';
+      return;
+    }
+    if (!window.Html5Qrcode) {
+      $('articleScanMsg').textContent = 'Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen.';
+      return;
+    }
+
+    $('articleScanMsg').textContent = 'Kamera wird gestartet …';
+    show('articleReader');
+
+    try {
+      if (html5Scanner) {
+        try { await html5Scanner.stop(); } catch (e) {}
+        try { html5Scanner.clear(); } catch (e) {}
+        html5Scanner = null;
+      }
+
+      html5Scanner = new Html5Qrcode('articleReader');
+      await html5Scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
+        async decodedText => {
+          const code = decodedText;
+          const scanner = html5Scanner;
+          html5Scanner = null;
+          try {
+            await scanner.stop();
+            scanner.clear();
+          } catch (e) {}
+          hide('articleReader');
+          $('fBarcode').value = code;
+          $('articleScanMsg').textContent = 'Code übernommen. Du kannst den Artikel jetzt speichern.';
+          $('fBarcode').focus();
+        },
+        () => {}
+      );
+      $('articleScanMsg').textContent = 'Kamera aktiv: Barcode oder QR-Code vor die Kamera halten.';
+    } catch (e) {
+      $('articleScanMsg').textContent = 'Kamera startet nicht: ' +
+        (e.message || e.name || 'Bitte Kamerazugriff prüfen.') +
+        ' Du kannst den Code manuell eingeben.';
+      hide('articleReader');
+      if (html5Scanner) {
+        try { html5Scanner.clear(); } catch (x) {}
+        html5Scanner = null;
+      }
+    }
+  }
+
+  async function saveProduct() {
+    const name = $('fName').value.trim();
+
+    if (!name) {
+      $('formMsg').textContent = 'Bitte einen Artikelnamen eingeben.';
+      return;
+    }
+
+    const data = {
+      name,
+      sku: $('fSku').value.trim() || null,
+      barcode: $('fBarcode').value.trim() || null,
+      quantity: Number($('fQty').value || 0),
+      unit: $('fUnit').value.trim() || 'Stück',
+      min_quantity: Number($('fMin').value || 0),
+      location: $('fLoc').value.trim() || null,
+      image_data: editingImageData[0],
+      image_data_2: editingImageData[1],
+      image_data_3: editingImageData[2]
+    };
+
+    if (data.quantity < 0 || data.min_quantity < 0) {
+      $('formMsg').textContent = 'Bestände dürfen nicht negativ sein.';
+      return;
+    }
+
+    $('saveProduct').disabled = true;
+
+    let result;
+
+    if (editingId) {
+      result = await client.from('products')
+        .update(data)
+        .eq('id', editingId)
+        .select()
+        .single();
+    } else {
+      if (products.length >= 1000) {
+        $('formMsg').textContent = 'Die Grenze von 1.000 Artikeln ist erreicht.';
+        $('saveProduct').disabled = false;
+        return;
+      }
+
+      result = await client.from('products').insert(data).select().single();
+    }
+
+    $('saveProduct').disabled = false;
+
+    if (result.error) {
+      $('formMsg').textContent = 'Fehler: ' + result.error.message;
+      return;
+    }
+
+    closeModal();
+    await refreshAll();
+    notify('Artikel gespeichert.');
+  }
+
+  // Artikel löschen: doppelte Bestätigung, damit nichts versehentlich gelöscht wird.
+  // Das Löschen entfernt auch den Buchungsverlauf dieses Artikels.
+  async function deleteProduct(p) {
+    const confirmed = window.confirm(
+      `Artikel "${p.name}" wirklich löschen?\n\n` +
+      `ACHTUNG: Der gesamte Buchungsverlauf dieses Artikels wird ebenfalls gelöscht. ` +
+      `Diese Aktion kann nicht rückgängig gemacht werden.`
+    );
+
+    if (!confirmed) return;
+
+    const typedName = window.prompt(
+      `Zur Sicherheit bitte den Artikelnamen exakt eingeben:\n${p.name}`
+    );
+
+    if (typedName !== p.name) {
+      notify('Löschen abgebrochen. Der Artikel bleibt erhalten.');
+      return;
+    }
+
+    const { error } = await client.rpc('delete_product', {
+      p_product_id: p.id
+    });
+
+    if (error) {
+      notify(
+        'Artikel konnte nicht gelöscht werden: ' + error.message +
+        ' Prüfe, ob du den SQL-Code für delete_product in Supabase ausgeführt hast.',
+        true
+      );
+      return;
+    }
+
+    await refreshAll();
+    notify('Artikel und zugehöriger Buchungsverlauf wurden gelöscht.');
+  }
+
+  function bookingForm(p = null, initialCode = '') {
+    if (!p && initialCode) {
+      p = products.find(x =>
+        x.barcode === initialCode ||
+        x.sku === initialCode ||
+        x.id === initialCode
+      );
+    }
+
+    openModal('Material buchen', `
+      <div class="field">
+        <label>Artikel / Barcode</label>
+        <input id="bCode" value="${escapeHtml(p ? (p.barcode || p.sku || p.name) : initialCode)}" placeholder="Barcode oder Artikelnummer">
+      </div>
+      <div class="field">
+        <label>Artikel auswählen</label>
+        <select id="bProduct">
+          <option value="">Bitte auswählen…</option>
+          ${products.map(x => `
+            <option value="${x.id}" ${p?.id === x.id ? 'selected' : ''}>
+              ${escapeHtml(x.name)} – Bestand ${Number(x.quantity)} ${escapeHtml(x.unit || 'Stück')}
+            </option>
+          `).join('')}
+        </select>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Aktion</label>
+          <select id="bAction">
+            <option value="out">Entnehmen (−)</option>
+            <option value="in">Einlagern (+)</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1">
+          <label>Menge</label>
+          <input id="bQty" type="number" min="0.001" step="any" value="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Notiz (optional)</label>
+        <input id="bReason" placeholder="z. B. Baustelle Müller">
+      </div>
+      <button id="doBooking" style="width:100%">Buchung bestätigen</button>
+      <div id="bookMsg" class="muted" style="margin-top:8px"></div>
+    `);
+
+    $('bCode').addEventListener('change', () => {
+      const code = $('bCode').value.trim();
+      const match = products.find(x => x.barcode === code || x.sku === code);
+      if (match) $('bProduct').value = match.id;
+    });
+
+    $('doBooking').onclick = async () => {
+      const productId = $('bProduct').value;
+      const qty = Number($('bQty').value);
+      const action = $('bAction').value;
+
+      if (!productId || !(qty > 0)) {
+        $('bookMsg').textContent = 'Bitte Artikel und gültige Menge auswählen.';
+        return;
+      }
+
+      $('doBooking').disabled = true;
+
+      const { error } = await client.rpc('adjust_stock', {
+        p_product_id: productId,
+        p_delta: action === 'out' ? -qty : qty,
+        p_reason: $('bReason').value.trim() ||
+          (action === 'out' ? 'Entnahme' : 'Wareneingang')
+      });
+
+      $('doBooking').disabled = false;
+
+      if (error) {
+        $('bookMsg').textContent = 'Buchung fehlgeschlagen: ' + error.message;
+        return;
+      }
+
+      closeModal();
+      await refreshAll();
+      notify('Bestand aktualisiert.');
+    };
+  }
+
+  async function scanFlow() {
+    openModal('Barcode scannen', `
+      <p class="muted">Beim ersten Mal bitte den Kamerazugriff erlauben. Halte den Barcode ruhig vor die Kamera.</p>
+      <div id="reader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div>
+      <div class="field" style="margin-top:12px">
+        <label>Barcode / Artikelnummer</label>
+        <input id="manualCode" placeholder="Code hier eingeben">
+      </div>
+      <button id="manualContinue" style="width:100%">Artikel suchen</button>
+      <div id="scanMsg" class="muted" style="margin-top:8px"></div>
+    `);
+
+    $('manualContinue').onclick = () => {
+      const code = $('manualCode').value.trim();
+      closeModal();
+      bookingForm(null, code);
+    };
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('scanMsg').textContent = 'Dieser Browser kann die Kamera nicht öffnen. Bitte manuell eingeben.';
+      return;
+    }
+
+    if (!window.Html5Qrcode) {
+      $('scanMsg').textContent = 'Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen oder Code manuell eingeben.';
+      return;
+    }
+
+    try {
+      html5Scanner = new Html5Qrcode('reader');
+
+      await html5Scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
+        async decodedText => {
+          const code = decodedText;
+          const old = html5Scanner;
+          html5Scanner = null;
+
+          try {
+            await old.stop();
+            old.clear();
+          } catch (e) {}
+
+          hide('modal');
+          bookingForm(null, code);
+        },
+        () => {}
+      );
+    } catch (e) {
+      $('scanMsg').textContent =
+        'Kamera startet nicht: ' +
+        (e.message || e.name || 'Bitte Kamerazugriff prüfen.') +
+        ' Du kannst den Code unten manuell eingeben.';
+
+      if (html5Scanner) {
+        try {
+          html5Scanner.clear();
+        } catch (x) {}
+        html5Scanner = null;
+      }
+    }
+  }
+
+  function download(filename, text, type = 'text/csv;charset=utf-8') {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + text], { type }));
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function csvEscape(v) {
+    return '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  }
+
+  function exportCsv() {
+    const rows = [
+      ['name', 'sku', 'barcode', 'quantity', 'unit', 'min_quantity', 'location'],
+      ...products.map(p => [
+        p.name, p.sku, p.barcode, p.quantity, p.unit, p.min_quantity, p.location
+      ])
+    ];
+
+    download(
+      'lager_artikel.csv',
+      rows.map(r => r.map(csvEscape).join(';')).join('\r\n')
+    );
+  }
+
+  function parseCsv(text) {
+    let rows = [], row = [], cell = '', quoted = false;
+
+    for (let i = 0; i < text.length; i++) {
+      let c = text[i];
+
+      if (c === '"' && quoted && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') {
+        quoted = !quoted;
+      } else if ((c === ';' || c === ',') && !quoted) {
+        row.push(cell);
+        cell = '';
+      } else if ((c === '\n' || c === '\r') && !quoted) {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell);
+        if (row.some(v => v.trim())) rows.push(row);
+        row = [];
+        cell = '';
+      } else {
+        cell += c;
+      }
+    }
+
+    row.push(cell);
+    if (row.some(v => v.trim())) rows.push(row);
+    return rows;
+  }
+
+  async function importCsvFile(file) {
+    const rows = parseCsv(await file.text());
+
+    if (rows.length < 2) {
+      notify('CSV-Datei enthält keine Artikel.', true);
+      return;
+    }
+
+    const headers = rows.shift().map(h =>
+      h.trim().toLowerCase().replace(/^\ufeff/, '')
+    );
+
+    const idx = (...names) => headers.findIndex(h => names.includes(h));
+
+    const ni = idx('name', 'artikel', 'artikelname');
+    const si = idx('sku', 'artikelnummer', 'nummer');
+    const bi = idx('barcode', 'ean', 'qr-code');
+    const qi = idx('quantity', 'bestand', 'menge');
+    const ui = idx('unit', 'einheit');
+    const mi = idx('min_quantity', 'mindestbestand', 'minbestand');
+    const li = idx('location', 'lagerort');
+
+    if (ni < 0) {
+      notify('CSV benötigt eine Spalte name oder Artikelname.', true);
+      return;
+    }
+
+    const data = rows.map(r => ({
+      name: (r[ni] || '').trim(),
+      sku: si >= 0 ? (r[si] || '').trim() || null : null,
+      barcode: bi >= 0 ? (r[bi] || '').trim() || null : null,
+      quantity: qi >= 0 ? Number(String(r[qi] || '0').replace(',', '.')) : 0,
+      unit: ui >= 0 ? (r[ui] || 'Stück').trim() : 'Stück',
+      min_quantity: mi >= 0 ? Number(String(r[mi] || '0').replace(',', '.')) : 0,
+      location: li >= 0 ? (r[li] || '').trim() || null : null
+    })).filter(x => x.name);
+
+    if (products.length + data.length > 1000) {
+      notify('Import würde die Grenze von 1.000 Artikeln überschreiten.', true);
+      return;
+    }
+
+    const { error } = await client.from('products').insert(data);
+
+    if (error) {
+      notify('Import fehlgeschlagen: ' + error.message, true);
+      return;
+    }
+
+    await refreshAll();
+    notify(data.length + ' Artikel importiert.');
+  }
+
+  function openQrTools() {
+    const c = cfg();
+    openModal('GEBA-Lager – QR-Codes', `
+      <div class="panel" style="box-shadow:none;text-align:center">
+        <h3>1. GEBA-Lager öffnen</h3>
+        <p class="muted">Mit der Handykamera scannen, um die App zu öffnen.</p>
+        <div id="appQr" style="display:flex;justify-content:center;margin:12px auto"></div>
+        <p><a href="https://bergabsind45drin.github.io/GEBA-Lager/" target="_blank" rel="noopener">App öffnen</a></p>
+      </div>
+      <div class="panel" style="box-shadow:none;text-align:center">
+        <h3>2. Supabase-Verbindung einrichten</h3>
+        <p class="muted">Auf einem anderen Gerät in GEBA-Lager „Supabase-QR-Code scannen“ wählen.</p>
+        <div id="supabaseQr" style="display:flex;justify-content:center;margin:12px auto"></div>
+        <p id="supabaseQrMsg" class="muted"></p>
+      </div>
+      <p class="muted">Der zweite QR-Code enthält die Projekt-URL und den öffentlichen Publishable/anon-Key. Niemals einen service_role- oder geheimen Schlüssel verwenden.</p>
+      <button id="printQrBtn" type="button" style="width:100%">Beide QR-Codes auf A4 drucken</button>
+    `);
+    $('printQrBtn').onclick = () => window.print();
+    if (window.QRCode) {
+      new QRCode($('appQr'), { text: 'https://bergabsind45drin.github.io/GEBA-Lager/', width: 190, height: 190 });
+      if (c.url && c.key) {
+        const payload = JSON.stringify({ type: 'GEBA-Lager-Config', url: c.url, key: c.key });
+        new QRCode($('supabaseQr'), { text: payload, width: 190, height: 190 });
+        $('supabaseQrMsg').textContent = 'Einrichtungs-QR-Code bereit.';
+      } else {
+        $('supabaseQrMsg').textContent = 'Keine Supabase-Verbindung gespeichert. Bitte zuerst einrichten.';
+      }
+    } else {
+      $('supabaseQrMsg').textContent = 'QR-Code-Bibliothek konnte nicht geladen werden. Bitte Internetverbindung prüfen.';
+    }
+  }
+
+  async function scanConfigQr() {
+    if (!window.Html5Qrcode) {
+      $('configQrMsg').textContent = 'Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen.';
+      return;
+    }
+    show('configQrReader');
+    $('configQrMsg').textContent = 'Kamera wird gestartet …';
+    try {
+      if (html5Scanner) {
+        try { await html5Scanner.stop(); } catch (e) {}
+        try { html5Scanner.clear(); } catch (e) {}
+      }
+      html5Scanner = new Html5Qrcode('configQrReader');
+      await html5Scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 240, height: 240 } }, async decodedText => {
+        let data;
+        try { data = JSON.parse(decodedText); } catch (e) { $('configQrMsg').textContent = 'Das ist kein GEBA-Lager-Einrichtungs-QR-Code.'; return; }
+        if (data.type !== 'GEBA-Lager-Config' || !data.url || !data.key) {
+          $('configQrMsg').textContent = 'Im QR-Code fehlen Projekt-URL oder Schlüssel.';
+          return;
+        }
+        const scanner = html5Scanner; html5Scanner = null;
+        try { await scanner.stop(); scanner.clear(); } catch (e) {}
+        hide('configQrReader');
+        $('cfgUrl').value = data.url;
+        $('cfgKey').value = data.key;
+        $('configQrMsg').textContent = 'Verbindungsdaten übernommen. Tippe auf „Verbinden“.';
+      }, () => {});
+      $('configQrMsg').textContent = 'Halte den Supabase-Einrichtungs-QR-Code vor die Kamera.';
+    } catch (e) {
+      $('configQrMsg').textContent = 'Kamera konnte nicht gestartet werden. Bitte HTTPS und Kamerazugriff prüfen.';
+      hide('configQrReader');
+      if (html5Scanner) { try { html5Scanner.clear(); } catch (x) {} html5Scanner = null; }
+    }
+  }
+
+  function showMainView(view) {
+    hide('homeView'); hide('inventoryView'); hide('toolView');
+    if (view === 'inventory') show('inventoryView');
+    else if (view === 'tools') show('toolView');
+    else show('homeView');
+    window.scrollTo(0, 0);
+  }
+  $('openInventoryBtn').onclick = () => showMainView('inventory');
+  $('openToolsBtn').onclick = () => showMainView('tools');
+  $('inventoryHomeBtn').onclick = () => showMainView('home');
+  $('toolsHomeBtn').onclick = () => showMainView('home');
+  $('inventoryStockTab').onclick = () => {
+    show('inventoryStockPanel'); hide('inventoryMovementsPanel');
+    $('inventoryStockTab').classList.remove('secondary');
+    $('inventoryMovementsTab').classList.add('secondary');
+  };
+  $('inventoryMovementsTab').onclick = () => {
+    hide('inventoryStockPanel'); show('inventoryMovementsPanel');
+    $('inventoryMovementsTab').classList.remove('secondary');
+    $('inventoryStockTab').classList.add('secondary');
+  };
+
+  $('qrToolsBtn').onclick = openQrTools;
+  $('scanConfigQr').onclick = scanConfigQr;
+
+  $('saveConfig').onclick = () => {
+    const url = $('cfgUrl').value.trim();
+    const key = $('cfgKey').value.trim();
+
+    if (!url || !key) return;
+
+    localStorage.setItem('lager_supabase_url', url);
+    localStorage.setItem('lager_supabase_key', key);
+    location.reload();
+  };
+
+  $('loginBtn').onclick = login;
+
+  $('password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') login();
+  });
+
+  $('logoutBtn').onclick = () => client.auth.signOut();
+  $('refreshBtn').onclick = refreshAll;
+  $('search').oninput = renderProducts;
+
+  $('filterBtn').onclick = () => {
+    showOnlyLow = !showOnlyLow;
+    $('filterBtn').textContent = showOnlyLow
+      ? 'Alle Artikel anzeigen'
+      : 'Nur Nachbestellen';
+    renderProducts();
+  };
+
+  $('addBtn').onclick = () => articleForm();
+  $('scanBtn').onclick = scanFlow;
+  $('openStockCartBtn').onclick = () => { show('stockCartPanel'); renderStockCartOptions(); renderStockCart(); $('stockCartPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  $('closeStockCartBtn').onclick = () => hide('stockCartPanel');
+  $('addStockCartItemBtn').onclick = () => addStockProductToCart(products.find(p => p.id === $('stockCartProduct').value));
+  $('scanStockCartBtn').onclick = scanStockCartItem;
+  $('findStockCartBarcodeBtn').onclick = () => addStockProductToCart(findStockProductByCode($('stockCartBarcode').value));
+  $('stockCartBarcode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addStockProductToCart(findStockProductByCode($('stockCartBarcode').value)); } });
+  $('checkoutStockCartBtn').onclick = checkoutStockCart;
+  $('clearStockCartBtn').onclick = () => { stockCart = []; renderStockCart(); showStockCartMessage('Warenkorb geleert.'); };
+  $('exportBtn').onclick = exportCsv;
+  $('importBtn').onclick = () => $('csvFile').click();
+
+  $('csvFile').onchange = e => {
+    if (e.target.files[0]) importCsvFile(e.target.files[0]);
+    e.target.value = '';
+  };
+
+  $('closeModal').onclick = closeModal;
+
+  $('modal').addEventListener('click', e => {
+    if (e.target === $('modal')) closeModal();
+  });
+
+  $('productsBody').addEventListener('click', e => {
+    const b = e.target.closest('button[data-action]');
+    if (!b) return;
+
+    const p = products.find(x => x.id === b.dataset.id);
+    if (!p) return;
+
+    if (b.dataset.action === 'edit') {
+      articleForm(p);
+    } else if (b.dataset.action === 'delete') {
+      deleteProduct(p);
+    } else {
+      bookingForm(p);
+    }
+  });
+
+  $('addToolCartBtn').onclick = addToolToCart;
+  $('checkoutToolCartBtn').onclick = checkoutToolCart;
+  $('clearToolCartBtn').onclick = () => { toolCart = []; renderToolCart(); };
+  $('stockCartBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-stock-cart-remove]');
+    if (btn) { stockCart.splice(Number(btn.dataset.stockCartRemove), 1); renderStockCart(); }
+  });
+  $('stockCartBody').addEventListener('change', e => {
+    const input = e.target.closest('input[data-stock-cart-qty]');
+    if (!input) return;
+    const index = Number(input.dataset.stockCartQty), quantity = Number(input.value);
+    if (!(quantity > 0)) { alert('Bitte eine Menge größer als 0 eingeben.'); renderStockCart(); return; }
+    if (stockCart[index]) stockCart[index].quantity = quantity;
+  });
+
+  $('toolCartBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-cart-remove]');
+    if (btn) { toolCart.splice(Number(btn.dataset.cartRemove), 1); renderToolCart(); }
+  });
+  $('toolCartBody').addEventListener('change', e => {
+    const input = e.target.closest('input[data-cart-qty]');
+    if (!input) return;
+    const index = Number(input.dataset.cartQty);
+    const quantity = Number(input.value);
+    if (!(quantity > 0)) { alert('Bitte eine Menge größer als 0 eingeben.'); renderToolCart(); return; }
+    if (toolCart[index]) toolCart[index].quantity = quantity;
+  });
+  renderToolCart();
+  renderStockCartOptions();
+  renderStockCart();
+  $('createToolBtn').onclick = createTool;
+  $('toolCreateTab').onclick = () => { show('toolCreatePanel'); hide('toolManagePanel'); };
+  $('toolManageTab').onclick = () => { hide('toolCreatePanel'); show('toolManagePanel'); };
+  $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
+  $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
+  $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
+  $('toolIssuesBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-return-tool]');
+    if (btn) returnTool(btn.dataset.returnTool, Number(btn.dataset.outstanding));
+  });
+
+  connect();
+})();
+</script>
+</body>
+</html>
