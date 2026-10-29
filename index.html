@@ -245,8 +245,13 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         <div class="field"><label for="toolProduct">Werkzeug / Artikel</label><select id="toolProduct"></select></div>
         <div class="field"><label for="toolQuantity">Menge</label><input id="toolQuantity" type="number" min="0.01" step="0.01" value="1"></div>
         <div class="field wide"><label for="toolNotes">Notiz (optional)</label><input id="toolNotes" placeholder="z. B. Seriennummer oder Zustand"></div>
-        <div class="wide"><button id="issueToolBtn">Werkzeug ausgeben</button><div id="toolIssueMsg" class="msg hidden"></div></div>
+        <div class="wide"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button></div>
       </div>
+      <h3 style="margin-top:18px">🛒 Sammelausgabe – Warenkorb</h3>
+      <p class="muted">Mitarbeiter, Baustelle und Notiz oben gelten für alle Artikel im Warenkorb.</p>
+      <div class="table-wrap"><table><thead><tr><th>Werkzeug / Artikel</th><th>Menge</th><th>Aktion</th></tr></thead><tbody id="toolCartBody"></tbody></table></div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap"><button type="button" id="clearToolCartBtn" class="secondary smallbtn">Warenkorb leeren</button><button type="button" id="checkoutToolCartBtn">Gesamte Ausgabe buchen</button></div>
+      <div id="toolIssueMsg" class="msg hidden"></div>
       <h3 style="margin-top:22px">Werkzeug zurückbuchen / Ausgabehistorie</h3>
       <div class="row" style="margin-bottom:10px"><button id="toolAllBtn" class="secondary smallbtn">Alle anzeigen</button><button id="toolActiveBtn" class="secondary smallbtn">Nur offene Ausgaben</button></div>
       <div class="table-wrap"><table><thead><tr><th>Ausgegeben</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status / Rückgabe</th></tr></thead><tbody id="toolIssuesBody"></tbody></table></div>
@@ -284,6 +289,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   let html5Scanner = null;
   let showOnlyLow = false;
   let toolIssues = [];
+  let toolCart = [];
   let showOnlyActiveTools = true;
 
   const cfg = () => ({
@@ -514,24 +520,73 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     el.classList.remove('hidden');
   }
 
-  async function issueTool() {
+  function renderToolCart() {
+    const body = $('toolCartBody');
+    if (!body) return;
+    body.innerHTML = toolCart.map((item, index) => {
+      const tool = tools.find(t => t.id === item.toolId);
+      return `<tr>
+        <td>${escapeHtml(tool?.name || 'Unbekannter Artikel')}<br><span class="muted">${escapeHtml(tool?.code || '')}</span></td>
+        <td><input type="number" min="0.01" step="0.01" value="${item.quantity}" data-cart-qty="${index}" style="max-width:110px"></td>
+        <td><button type="button" class="secondary smallbtn" data-cart-remove="${index}">Entfernen</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="3" class="muted">Der Warenkorb ist leer. Wähle oben einen Artikel und füge ihn hinzu.</td></tr>';
+  }
+
+  function addToolToCart() {
+    const toolId = $('toolProduct').value;
+    const quantity = Number($('toolQuantity').value);
+    if (!toolId || !(quantity > 0)) {
+      showToolMessage('Bitte Artikel und eine gültige Menge auswählen.', true); return;
+    }
+    const existing = toolCart.find(x => x.toolId === toolId);
+    if (existing) existing.quantity += quantity;
+    else toolCart.push({ toolId, quantity });
+    $('toolQuantity').value = '1';
+    renderToolCart();
+    showToolMessage('Artikel wurde zum Warenkorb hinzugefügt.');
+  }
+
+  async function checkoutToolCart() {
     const employee = $('toolEmployee').value.trim();
     const site = $('toolSite').value.trim();
-    const productId = $('toolProduct').value;
-    const quantity = Number($('toolQuantity').value);
     const notes = $('toolNotes').value.trim();
-    if (!employee || !site || !productId || !(quantity > 0)) {
-      showToolMessage('Bitte Mitarbeiter, Baustelle, Werkzeug und eine gültige Menge angeben.', true); return;
+    if (!employee || !site) {
+      showToolMessage('Bitte Mitarbeiter und Baustelle/Projekt eintragen.', true); return;
     }
-    $('issueToolBtn').disabled = true;
-    const { error } = await client.rpc('issue_tool', {
-      p_tool_id: productId, p_quantity: quantity,
-      p_employee_name: employee, p_site_name: site, p_notes: notes || null
+    if (!toolCart.length) {
+      showToolMessage('Der Warenkorb ist leer. Bitte zuerst Artikel hinzufügen.', true); return;
+    }
+    for (const item of toolCart) {
+      if (!(Number(item.quantity) > 0)) {
+        showToolMessage('Bitte bei allen Artikeln eine gültige Menge eintragen.', true); return;
+      }
+      const tool = tools.find(t => t.id === item.toolId);
+      if (!tool || Number(item.quantity) > Number(tool.quantity || 0)) {
+        showToolMessage(`Nicht genügend Bestand für „${tool?.name || 'Artikel'}“. Verfügbar: ${tool?.quantity ?? 0}.`, true); return;
+      }
+    }
+
+    const items = toolCart.map(x => ({ tool_id: x.toolId, quantity: Number(x.quantity) }));
+    $('checkoutToolCartBtn').disabled = true;
+    $('addToolCartBtn').disabled = true;
+    const { error } = await client.rpc('issue_tools_batch', {
+      p_items: items,
+      p_employee_name: employee,
+      p_site_name: site,
+      p_notes: notes || null
     });
-    $('issueToolBtn').disabled = false;
-    if (error) { showToolMessage('Ausgabe fehlgeschlagen: ' + error.message, true); return; }
-    $('toolQuantity').value = '1'; $('toolNotes').value = '';
-    showToolMessage('Werkzeug wurde ausgegeben und der Lagerbestand angepasst.');
+    $('checkoutToolCartBtn').disabled = false;
+    $('addToolCartBtn').disabled = false;
+    if (error) {
+      showToolMessage('Sammelausgabe fehlgeschlagen: ' + error.message, true);
+      return;
+    }
+    toolCart = [];
+    $('toolQuantity').value = '1';
+    $('toolNotes').value = '';
+    renderToolCart();
+    showToolMessage('Alle Artikel wurden gemeinsam ausgegeben. Mitarbeiter, Baustelle und Notiz wurden für jeden Eintrag übernommen.');
     await refreshAll();
   }
 
@@ -1283,7 +1338,22 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     }
   });
 
-  $('issueToolBtn').onclick = issueTool;
+  $('addToolCartBtn').onclick = addToolToCart;
+  $('checkoutToolCartBtn').onclick = checkoutToolCart;
+  $('clearToolCartBtn').onclick = () => { toolCart = []; renderToolCart(); };
+  $('toolCartBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-cart-remove]');
+    if (btn) { toolCart.splice(Number(btn.dataset.cartRemove), 1); renderToolCart(); }
+  });
+  $('toolCartBody').addEventListener('change', e => {
+    const input = e.target.closest('input[data-cart-qty]');
+    if (!input) return;
+    const index = Number(input.dataset.cartQty);
+    const quantity = Number(input.value);
+    if (!(quantity > 0)) { alert('Bitte eine Menge größer als 0 eingeben.'); renderToolCart(); return; }
+    if (toolCart[index]) toolCart[index].quantity = quantity;
+  });
+  renderToolCart();
   $('createToolBtn').onclick = createTool;
   $('toolCreateTab').onclick = () => { show('toolCreatePanel'); hide('toolManagePanel'); };
   $('toolManageTab').onclick = () => { hide('toolCreatePanel'); show('toolManagePanel'); };
