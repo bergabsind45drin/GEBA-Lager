@@ -39,7 +39,12 @@ th,td{text-align:left;padding:11px 8px;border-bottom:1px solid #e0ebf5;font-size
 th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 .table-wrap{overflow-x:auto}
 .product-thumb{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid #d7e6f5;margin:0 0 6px;display:block;background:#f3f8fc}
-.image-preview{max-width:100%;max-height:220px;object-fit:contain;border:1px solid #d7e6f5;border-radius:12px;margin-top:8px}
+.image-preview{max-width:100%;max-height:220px;object-fit:contain;border:1px solid #d7e6f5;border-radius:12px;margin-top:8px;cursor:zoom-in}
+.product-thumb{cursor:zoom-in}
+#imageLightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:56px 18px 18px}
+#imageLightbox.hidden{display:none}
+#imageLightbox img{max-width: min(96vw,1400px);max-height:86vh;object-fit:contain;border-radius:10px}
+#imageLightboxClose{position:absolute;top:14px;right:16px;background:#fff;color:#17212b;border:0;border-radius:10px;padding:10px 16px;font-weight:700;font-size:16px;cursor:pointer}
 .tool-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tool-form .field{margin:0}.tool-form .wide{grid-column:1/-1}
 @media(max-width:700px){.tool-form{grid-template-columns:1fr}.tool-form .wide{grid-column:auto}}
 
@@ -1477,6 +1482,25 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   });
 
   connect();
+})();
+</script>
+<div id="imageLightbox" class="hidden" role="dialog" aria-modal="true" aria-label="Bild vergrößert anzeigen">
+  <button id="imageLightboxClose" type="button">✕ Schließen</button>
+  <img id="imageLightboxImage" src="" alt="Vergrößertes Artikelbild">
+</div>
+<script>
+(() => {
+  const lightbox = document.getElementById('imageLightbox');
+  const enlarged = document.getElementById('imageLightboxImage');
+  const closeBtn = document.getElementById('imageLightboxClose');
+  function closeImage() { lightbox.classList.add('hidden'); enlarged.removeAttribute('src'); document.body.style.overflow = ''; }
+  document.addEventListener('click', event => {
+    const img = event.target.closest('img.product-thumb, img.image-preview');
+    if (img && img.src) { enlarged.src = img.src; enlarged.alt = img.alt || 'Vergrößertes Artikelbild'; lightbox.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+  });
+  closeBtn.addEventListener('click', closeImage);
+  lightbox.addEventListener('click', event => { if (event.target === lightbox) closeImage(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !lightbox.classList.contains('hidden')) closeImage(); });
 })();
 </script>
 </body>
