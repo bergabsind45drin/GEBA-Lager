@@ -126,6 +126,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   <div id="headerUser" class="row hidden">
     <small id="userEmail"></small>
     <button id="qrToolsBtn" class="secondary smallbtn">QR-Codes</button>
+    <button id="editorModeBtn" class="secondary smallbtn" type="button">✎ Editor</button>
     <button id="logoutBtn" class="secondary smallbtn">Abmelden</button>
   </div>
 </header>
@@ -229,7 +230,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         <h2>Letzte Buchungen vom Lager</h2>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Zeit</th><th>Artikel</th><th>Änderung</th><th>Nutzer</th></tr></thead>
+            <thead><tr><th>Zeit</th><th>Artikel</th><th>Änderung</th><th>Nutzer</th><th class="editor-column" style="display:none">Aktionen</th></tr></thead>
             <tbody id="movementsBody"></tbody>
           </table>
         </div>
@@ -380,7 +381,6 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
           enterApp();
         } else {
           currentUser = null;
-          editorMode = false;
           hide('appScreen');
           show('loginScreen');
           hide('headerUser');
@@ -517,6 +517,94 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     await refreshAll();
   }
 
+  function localDateTimeValue(value) {
+    const d = new Date(value);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  async function editMovement(id) {
+    const m = movements.find(x => x.id === id);
+    if (!m) return;
+    const product = products.find(x => x.id === m.product_id);
+    if (!product) { notify('Zugehöriger Artikel wurde nicht gefunden.', true); return; }
+    const date = prompt('Datum und Uhrzeit (YYYY-MM-DDTHH:MM)', localDateTimeValue(m.created_at));
+    if (date === null) return;
+    const deltaRaw = prompt('Bestandsänderung (z. B. 5 oder -2)', String(m.delta));
+    if (deltaRaw === null) return;
+    const delta = Number(deltaRaw);
+    if (!Number.isFinite(delta) || delta === 0 || !Number.isFinite(new Date(date).getTime())) { alert('Bitte Datum und eine gültige Änderung ungleich 0 eingeben.'); return; }
+    const reason = prompt('Grund / Notiz', m.reason || '') ;
+    if (reason === null) return;
+    const difference = delta - Number(m.delta);
+    if (Number(product.quantity || 0) + difference < 0) { alert('Der Artikelbestand würde negativ werden.'); return; }
+    const stockResult = await client.from('products').update({quantity: Number(product.quantity || 0) + difference}).eq('id', product.id);
+    if (stockResult.error) { notify('Bestand konnte nicht angepasst werden: ' + stockResult.error.message, true); return; }
+    const movementResult = await client.from('stock_movements').update({delta, reason, created_at: new Date(date).toISOString()}).eq('id', id);
+    if (movementResult.error) { notify('Buchung konnte nicht geändert werden. Bitte Bestand prüfen: ' + movementResult.error.message, true); }
+    await refreshAll();
+  }
+
+  async function deleteMovement(id) {
+    const m = movements.find(x => x.id === id);
+    if (!m) return;
+    const product = products.find(x => x.id === m.product_id);
+    if (!product) { notify('Zugehöriger Artikel wurde nicht gefunden.', true); return; }
+    if (!confirm('Diese Buchung wirklich löschen? Der Bestand wird entsprechend zurückgerechnet.')) return;
+    const nextQty = Number(product.quantity || 0) - Number(m.delta || 0);
+    if (nextQty < 0) { alert('Buchung kann nicht gelöscht werden, da der Bestand sonst negativ wäre.'); return; }
+    const stockResult = await client.from('products').update({quantity: nextQty}).eq('id', product.id);
+    if (stockResult.error) { notify('Bestand konnte nicht angepasst werden: ' + stockResult.error.message, true); return; }
+    const deleteResult = await client.from('stock_movements').delete().eq('id', id);
+    if (deleteResult.error) notify('Buchung konnte nicht gelöscht werden. Bitte Bestand prüfen: ' + deleteResult.error.message, true);
+    await refreshAll();
+  }
+
+  async function editToolIssue(id) {
+    const issue = toolIssues.find(x => x.id === id);
+    if (!issue || !issue.tool_id) { notify('Werkzeugverknüpfung fehlt; dieser Eintrag kann hier nicht bearbeitet werden.', true); return; }
+    const tool = tools.find(x => x.id === issue.tool_id);
+    if (!tool) { notify('Werkzeug wurde nicht gefunden.', true); return; }
+    const date = prompt('Ausgabedatum (YYYY-MM-DDTHH:MM)', localDateTimeValue(issue.issued_at));
+    if (date === null) return;
+    const employee = prompt('Mitarbeiter', issue.employee_name || '');
+    if (employee === null) return;
+    const site = prompt('Baustelle', issue.site_name || '');
+    if (site === null) return;
+    const quantityRaw = prompt('Ausgegebene Menge', String(issue.quantity));
+    if (quantityRaw === null) return;
+    const quantity = Number(quantityRaw);
+    const notes = prompt('Notiz', issue.notes || '');
+    if (notes === null) return;
+    const returned = Number(issue.returned_quantity || 0);
+    if (!Number.isFinite(quantity) || quantity < returned || quantity <= 0 || !Number.isFinite(new Date(date).getTime())) { alert('Menge muss mindestens der bereits zurückgegebenen Menge entsprechen.'); return; }
+    const oldOutstanding = Number(issue.quantity || 0) - returned;
+    const newOutstanding = quantity - returned;
+    const newToolQty = Number(tool.quantity || 0) + oldOutstanding - newOutstanding;
+    if (newToolQty < 0) { alert('Nicht genügend verfügbarer Bestand für diese Änderung.'); return; }
+    const stockResult = await client.from('tools').update({quantity:newToolQty}).eq('id', tool.id);
+    if (stockResult.error) { notify('Werkzeugbestand konnte nicht angepasst werden: ' + stockResult.error.message, true); return; }
+    const issueResult = await client.from('tool_issues').update({issued_at:new Date(date).toISOString(), employee_name:employee, site_name:site, quantity, notes:notes || null}).eq('id', id);
+    if (issueResult.error) notify('Ausgabe konnte nicht geändert werden. Bitte Bestand prüfen: ' + issueResult.error.message, true);
+    await refreshAll();
+  }
+
+  async function deleteToolIssue(id) {
+    const issue = toolIssues.find(x => x.id === id);
+    if (!issue) return;
+    if (!confirm('Diesen Historieneintrag wirklich löschen? Eine noch offene Menge wird dem Werkzeugbestand gutgeschrieben.')) return;
+    const outstanding = Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0));
+    if (outstanding > 0 && issue.tool_id) {
+      const tool = tools.find(x => x.id === issue.tool_id);
+      if (!tool) { notify('Werkzeug wurde nicht gefunden.', true); return; }
+      const stockResult = await client.from('tools').update({quantity:Number(tool.quantity || 0) + outstanding}).eq('id', tool.id);
+      if (stockResult.error) { notify('Werkzeugbestand konnte nicht angepasst werden: ' + stockResult.error.message, true); return; }
+    }
+    const result = await client.from('tool_issues').delete().eq('id', id);
+    if (result.error) notify('Historieneintrag konnte nicht gelöscht werden: ' + result.error.message, true);
+    await refreshAll();
+  }
+
   function renderToolIssues() {
     const body = $('toolIssuesBody');
     if (!body) return;
@@ -532,9 +620,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
         <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(x.notes || '')}</span></td>
         <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
-        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-return-tool="${x.id}" data-outstanding="${outstanding}">Rückgabe buchen</button>`}
-          ${editorMode ? `<div class="row" style="margin-top:6px"><button class="secondary smallbtn" data-edit-issue="${x.id}">Bearbeiten</button><button class="danger smallbtn" data-delete-issue="${x.id}">Löschen</button></div>` : ''}
-        </td>
+        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-return-tool="${x.id}" data-outstanding="${outstanding}">Rückgabe buchen</button>`}${editorMode ? `<br><button type="button" class="secondary smallbtn" data-edit-tool-issue="${x.id}">Bearbeiten</button> <button type="button" class="danger smallbtn" data-delete-tool-issue="${x.id}">Löschen</button>` : ''}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" class="muted">Keine passenden Werkzeugausgaben.</td></tr>';
   }
@@ -753,114 +839,21 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   function renderMovements() {
     $('movementsBody').innerHTML = movements.map(m => `
       <tr>
-        <td data-label="Zeit">${new Date(m.created_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'})}</td>
+        <td data-label="Zeit">${new Date(m.created_at).toLocaleString('de-DE', {
+          dateStyle: 'short',
+          timeStyle: 'short'
+        })}</td>
         <td data-label="Artikel">${escapeHtml(m.products?.name || 'Artikel')}</td>
-        <td data-label="Änderung"><b style="color:${m.delta < 0 ? '#a52c2c' : '#267043'}">${m.delta > 0 ? '+' : ''}${Number(m.delta)}</b>
-          <span class="muted">${escapeHtml(m.reason || '')}</span></td>
-        <td data-label="Nutzer">${escapeHtml(m.user_email || 'Nutzer')}
-          ${editorMode ? `<div class="row" style="margin-top:6px"><button class="secondary smallbtn" data-edit-movement="${m.id}">Bearbeiten</button><button class="danger smallbtn" data-delete-movement="${m.id}">Löschen</button></div>` : ''}
+        <td data-label="Änderung">
+          <b style="color:${m.delta < 0 ? '#a52c2c' : '#267043'}">
+            ${m.delta > 0 ? '+' : ''}${Number(m.delta)}
+          </b>
+          <span class="muted">${escapeHtml(m.reason || '')}</span>
         </td>
-      </tr>`).join('') || '<tr><td colspan="4" class="muted">Noch keine Buchungen.</td></tr>';
-  }
-
-  function setEditorMode(enabled) {
-    editorMode = enabled;
-    $('editorModeBtn').textContent = enabled ? '🔒 Editor beenden' : '✎ Editor-Modus';
-    $('editorModeBtn').classList.toggle('danger', enabled);
-    renderMovements();
-    renderToolIssues();
-    notify(enabled ? 'Editor-Modus aktiviert.' : 'Editor-Modus beendet.');
-  }
-
-  async function toggleEditorMode() {
-    if (editorMode) { setEditorMode(false); return; }
-    const password = prompt('Passwort für den Editor-Modus eingeben:');
-    if (password === null) return;
-    if (password !== EDITOR_PASSWORD) { alert('Falsches Passwort.'); return; }
-    setEditorMode(true);
-  }
-
-  function editMovement(m) {
-    openModal('Lagerbuchung bearbeiten', `
-      <div class="field"><label>Datum und Uhrzeit</label><input id="editMoveDate" type="datetime-local" value="${new Date(m.created_at).toISOString().slice(0,16)}"></div>
-      <div class="field"><label>Mengenänderung (+ Zugang / - Entnahme)</label><input id="editMoveDelta" type="number" step="any" value="${Number(m.delta)}"></div>
-      <div class="field"><label>Grund / Notiz</label><input id="editMoveReason" value="${escapeHtml(m.reason || '')}"></div>
-      <button id="saveMoveEdit" style="width:100%">Änderung speichern</button>
-    `);
-    $('saveMoveEdit').onclick = async () => {
-      const delta = Number($('editMoveDelta').value), date = $('editMoveDate').value;
-      if (!Number.isFinite(delta) || !date) { alert('Bitte Menge und Datum prüfen.'); return; }
-      const product = products.find(p => p.id === m.product_id);
-      if (!product) { alert('Der zugehörige Artikel wurde nicht gefunden.'); return; }
-      const difference = delta - Number(m.delta);
-      const nextQty = Number(product.quantity || 0) + difference;
-      if (nextQty < 0) { alert('Die Änderung würde einen negativen Lagerbestand erzeugen.'); return; }
-      const { error: stockError } = await client.from('products').update({quantity:nextQty}).eq('id',product.id);
-      if (stockError) { notify('Bestand konnte nicht angepasst werden: '+stockError.message,true); return; }
-      const { error } = await client.from('stock_movements').update({delta,reason:$('editMoveReason').value.trim() || null,created_at:new Date(date).toISOString()}).eq('id',m.id);
-      if (error) { await refreshAll(); notify('Buchung konnte nicht geändert werden: '+error.message,true); return; }
-      closeModal(); await refreshAll(); notify('Lagerbuchung geändert.');
-    };
-  }
-
-  async function deleteMovement(m) {
-    if (!confirm('Diese Buchung wirklich löschen? Der Lagerbestand wird entsprechend zurückgerechnet.')) return;
-    const product = products.find(p => p.id === m.product_id);
-    if (!product) { notify('Artikel zur Buchung nicht gefunden.',true); return; }
-    const nextQty = Number(product.quantity || 0) - Number(m.delta || 0);
-    if (nextQty < 0) { notify('Löschen würde einen negativen Bestand erzeugen.',true); return; }
-    const {error: stockError} = await client.from('products').update({quantity:nextQty}).eq('id',product.id);
-    if (stockError) { notify('Bestand konnte nicht angepasst werden: '+stockError.message,true); return; }
-    const {error} = await client.from('stock_movements').delete().eq('id',m.id);
-    if (error) { await refreshAll(); notify('Buchung konnte nicht gelöscht werden: '+error.message,true); return; }
-    await refreshAll(); notify('Lagerbuchung gelöscht und Bestand zurückgerechnet.');
-  }
-
-  function editToolIssue(x) {
-    const localDate = x.issued_at ? new Date(x.issued_at).toISOString().slice(0,16) : '';
-    openModal('Werkzeugausgabe bearbeiten', `
-      <div class="field"><label>Ausgegeben am</label><input id="editIssueDate" type="datetime-local" value="${localDate}"></div>
-      <div class="field"><label>Mitarbeiter</label><input id="editIssueEmployee" value="${escapeHtml(x.employee_name || '')}"></div>
-      <div class="field"><label>Baustelle</label><input id="editIssueSite" value="${escapeHtml(x.site_name || '')}"></div>
-      <div class="field"><label>Ausgegebene Menge</label><input id="editIssueQty" type="number" min="0" step="any" value="${Number(x.quantity || 0)}"></div>
-      <div class="field"><label>Bereits zurückgegeben</label><input id="editIssueReturned" type="number" min="0" step="any" value="${Number(x.returned_quantity || 0)}"></div>
-      <div class="field"><label>Notiz</label><input id="editIssueNotes" value="${escapeHtml(x.notes || '')}"></div>
-      <button id="saveIssueEdit" style="width:100%">Änderung speichern</button>
-    `);
-    $('saveIssueEdit').onclick = async () => {
-      const quantity=Number($('editIssueQty').value), returned=Number($('editIssueReturned').value), date=$('editIssueDate').value;
-      if (!date || !Number.isFinite(quantity) || !Number.isFinite(returned) || quantity < 0 || returned < 0 || returned > quantity) { alert('Bitte Datum und Mengen prüfen. Rückgabe darf nicht größer als Ausgabe sein.'); return; }
-      const oldOpen=Math.max(0,Number(x.quantity||0)-Number(x.returned_quantity||0));
-      const newOpen=quantity-returned, diff=oldOpen-newOpen;
-      if (diff && x.tool_id) {
-        const tool=tools.find(t=>t.id===x.tool_id);
-        if (!tool) { alert('Das zugehörige Werkzeug wurde nicht gefunden.'); return; }
-        const next=Number(tool.quantity||0)+diff;
-        if (next < 0) { alert('Die Änderung würde einen negativen Werkzeugbestand erzeugen.'); return; }
-        const {error:te}=await client.from('tools').update({quantity:next}).eq('id',tool.id);
-        if(te){notify('Werkzeugbestand konnte nicht angepasst werden: '+te.message,true);return;}
-      }
-      const {error}=await client.from('tool_issues').update({
-        issued_at:new Date(date).toISOString(),employee_name:$('editIssueEmployee').value.trim(),
-        site_name:$('editIssueSite').value.trim(),quantity,returned_quantity:returned,notes:$('editIssueNotes').value.trim()||null
-      }).eq('id',x.id);
-      if(error){await refreshAll();notify('Ausgabe konnte nicht geändert werden: '+error.message,true);return;}
-      closeModal();await refreshAll();notify('Werkzeugausgabe geändert.');
-    };
-  }
-
-  async function deleteToolIssue(x) {
-    if (!confirm('Diese Werkzeugausgabe wirklich löschen? Eine noch offene Menge wird dem Werkzeugbestand wieder gutgeschrieben.')) return;
-    const outstanding=Math.max(0,Number(x.quantity||0)-Number(x.returned_quantity||0));
-    if(outstanding && x.tool_id){
-      const tool=tools.find(t=>t.id===x.tool_id);
-      if(!tool){notify('Werkzeug zur Ausgabe nicht gefunden.',true);return;}
-      const {error:te}=await client.from('tools').update({quantity:Number(tool.quantity||0)+outstanding}).eq('id',tool.id);
-      if(te){notify('Werkzeugbestand konnte nicht angepasst werden: '+te.message,true);return;}
-    }
-    const {error}=await client.from('tool_issues').delete().eq('id',x.id);
-    if(error){await refreshAll();notify('Ausgabe konnte nicht gelöscht werden: '+error.message,true);return;}
-    await refreshAll();notify('Werkzeugausgabe gelöscht.');
+        <td data-label="Nutzer">${escapeHtml(m.user_email || 'Nutzer')}</td>
+        ${editorMode ? `<td data-label="Aktionen"><button type="button" class="secondary smallbtn" data-edit-movement="${m.id}">Bearbeiten</button> <button type="button" class="danger smallbtn" data-delete-movement="${m.id}">Löschen</button></td>` : ''}
+      </tr>
+    `).join('') || '<tr><td colspan="4" class="muted">Noch keine Buchungen.</td></tr>';
   }
 
   function openModal(title, html) {
@@ -1483,8 +1476,20 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     $('inventoryStockTab').classList.add('secondary');
   };
 
+  $('editorModeBtn').onclick = () => {
+    if (editorMode) {
+      editorMode = false;
+      $('editorModeBtn').textContent = '✎ Editor';
+    } else {
+      const password = prompt('Editor-Passwort eingeben:');
+      if (password !== EDITOR_PASSWORD) { if (password !== null) alert('Falsches Passwort.'); return; }
+      editorMode = true;
+      $('editorModeBtn').textContent = '🔒 Editor beenden';
+    }
+    renderMovements();
+    renderToolIssues();
+  };
   $('qrToolsBtn').onclick = openQrTools;
-  $('editorModeBtn').onclick = toggleEditorMode;
   $('scanConfigQr').onclick = scanConfigQr;
 
   $('saveConfig').onclick = () => {
@@ -1580,15 +1585,14 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.dataset.returnTool) returnTool(btn.dataset.returnTool, Number(btn.dataset.outstanding));
-    if (btn.dataset.editIssue && editorMode) { const x=toolIssues.find(v=>v.id===btn.dataset.editIssue); if(x) editToolIssue(x); }
-    if (btn.dataset.deleteIssue && editorMode) { const x=toolIssues.find(v=>v.id===btn.dataset.deleteIssue); if(x) deleteToolIssue(x); }
+    else if (btn.dataset.editToolIssue) editToolIssue(btn.dataset.editToolIssue);
+    else if (btn.dataset.deleteToolIssue) deleteToolIssue(btn.dataset.deleteToolIssue);
   });
   $('movementsBody').addEventListener('click', e => {
-    const btn=e.target.closest('button'); if(!btn || !editorMode) return;
-    const m=movements.find(v=>v.id===btn.dataset.editMovement || v.id===btn.dataset.deleteMovement);
-    if(!m) return;
-    if(btn.dataset.editMovement) editMovement(m);
-    if(btn.dataset.deleteMovement) deleteMovement(m);
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.editMovement) editMovement(btn.dataset.editMovement);
+    else if (btn.dataset.deleteMovement) deleteMovement(btn.dataset.deleteMovement);
   });
 
   connect();
