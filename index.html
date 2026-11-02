@@ -423,14 +423,21 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   async function refreshAll() {
     if (!client || !currentUser) return;
 
+    // Kleine Listenabfragen: große Bilddaten werden NICHT bei jedem Refresh geladen.
+    // Bilder werden erst beim Öffnen eines einzelnen Artikels nachgeladen.
     const [p, m, ti, t] = await Promise.all([
-      client.from('products').select('*').order('name').limit(1001),
+      client.from('products')
+        .select('id,name,sku,barcode,quantity,unit,min_quantity,location')
+        .order('name').limit(1001),
       client.from('stock_movements')
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
-        .order('created_at', { ascending: false })
-        .limit(50),
-      client.from('tool_issues').select('*, tools!tool_issues_tool_id_fkey(name,unit)').order('issued_at', { ascending: false }).limit(500),
-      client.from('tools').select('*').order('name').limit(1000)
+        .order('created_at', { ascending: false }).limit(30),
+      client.from('tool_issues')
+        .select('id,tool_id,employee_name,site_name,quantity,returned_quantity,notes,issued_at,tool_name_snapshot,tool_unit_snapshot,tools!tool_issues_tool_id_fkey(name,unit)')
+        .order('issued_at', { ascending: false }).limit(150),
+      client.from('tools')
+        .select('id,name,unit,quantity,code,active')
+        .order('name').limit(500)
     ]);
 
     if (p.error) {
@@ -730,7 +737,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     $('productsBody').innerHTML = list.map(p => `
       <tr style="${Number(p.quantity) <= Number(p.min_quantity || 0) ? 'background:#fff8eb' : ''}">
         <td data-label="Artikel">
-          ${p.image_data ? `<img class="product-thumb" src="${p.image_data}" alt="${escapeHtml(p.name)}" loading="lazy">` : ''}
+          
           <b>${escapeHtml(p.name)}</b><br>
           <span class="muted">${escapeHtml(p.sku || p.barcode || '')}</span>
         </td>
@@ -1550,7 +1557,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     if (e.target === $('modal')) closeModal();
   });
 
-  $('productsBody').addEventListener('click', e => {
+  $('productsBody').addEventListener('click', async e => {
     const b = e.target.closest('button[data-action]');
     if (!b) return;
 
@@ -1558,7 +1565,14 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     if (!p) return;
 
     if (b.dataset.action === 'edit') {
-      articleForm(p);
+      b.disabled = true;
+      try {
+        const { data, error } = await client.from('products')
+          .select('image_data,image_data_2,image_data_3')
+          .eq('id', p.id).single();
+        if (error) { notify('Artikelbilder konnten nicht geladen werden: ' + error.message, true); return; }
+        articleForm({ ...p, ...(data || {}) });
+      } finally { b.disabled = false; }
     } else if (b.dataset.action === 'delete') {
       deleteProduct(p);
     } else {
