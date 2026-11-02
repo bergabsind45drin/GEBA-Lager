@@ -186,6 +186,12 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     <button id="loginBtn" style="width:100%">Anmelden</button>
     <div id="loginMsg" class="msg hidden"></div>
     <p class="muted">Die Nutzer legst du im Supabase-Dashboard an.</p>
+    <hr style="border:0;border-top:1px solid #d7e6f5;margin:18px 0">
+    <h2>Monteur-Anmeldung</h2>
+    <div class="field"><label for="monteurName">Name</label><select id="monteurName"><option value="">Name auswählen…</option><option>Marius</option><option>Niklas</option><option>Nino</option><option>Steffen</option><option>Nick</option><option>Phillip</option><option>Alex</option><option>Silvio</option><option>Thomas</option><option>Stephan</option><option>Yves</option><option>Leo</option></select></div>
+    <div class="field"><label for="monteurPin">Persönliche 6-stellige PIN</label><input id="monteurPin" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-stellige PIN"></div>
+    <button id="monteurLoginBtn" class="secondary" style="width:100%">Als Monteur anmelden</button>
+    <div id="monteurLoginMsg" class="msg hidden"></div>
   </section>
 
   <section id="appScreen" class="hidden">
@@ -371,6 +377,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   let client = null;
   let currentUser = null;
+  let currentRole = 'office';
+  const MONTEUR_LOGIN_URL = 'https://rjdyqjzbqbgemzlqbvba.supabase.co/functions/v1/monteur-login';
   let products = [];
   let tools = [];
   let movements = [];
@@ -468,13 +476,43 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   async function enterApp() {
-    hide('loginScreen');
-    hide('configScreen');
-    show('appScreen');
-    showMainView('home');
-    show('headerUser');
-    $('userEmail').textContent = currentUser.email || '';
-    await refreshAll();
+    hide('loginScreen'); hide('configScreen'); show('appScreen'); show('headerUser');
+    const { data: roleRow, error: roleError } = await client.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
+    currentRole = roleError ? 'unknown' : (roleRow?.role || 'unknown');
+    if (currentRole === 'unknown') { await client.auth.signOut(); notify('Benutzerrolle konnte nicht sicher geprüft werden. Bitte erneut anmelden.', true); return; }
+    const isMonteur = currentRole === 'monteur';
+    $('userEmail').textContent = isMonteur ? (currentUser.user_metadata?.name || 'Monteur') : (currentUser.email || '');
+    ['qrToolsBtn','editorModeBtn'].forEach(id => $(id).classList.toggle('hidden', isMonteur));
+    $('openInventoryBtn').classList.toggle('hidden', isMonteur);
+    $('openToolsBtn').classList.toggle('hidden', isMonteur);
+    $('openFleetInventoryBtn').classList.toggle('hidden', false);
+    $('fleetHomeBtn').classList.toggle('hidden', isMonteur);
+    $('fleetCreateTab').classList.toggle('hidden', isMonteur);
+    $('fleetExportBtn').classList.toggle('hidden', isMonteur);
+    $('fleetResetBtn').classList.toggle('hidden', isMonteur);
+    $('fleetCreatePanel').classList.toggle('hidden', isMonteur);
+    if (isMonteur) {
+      showMainView('fleet'); hide('fleetCreatePanel'); show('fleetCountPanel');
+      $('fleetCountTab').classList.add('hidden');
+      await loadFleetForMonteur();
+    } else {
+      $('fleetCountTab').classList.remove('hidden');
+      showMainView('home'); await refreshAll();
+    }
+  }
+
+  async function loadFleetForMonteur() {
+    const { data, error } = await client.from('products').select('id,name,sku,barcode,quantity,unit').order('name').limit(1001);
+    if (error) { notify('Lagerartikel konnten nicht geladen werden: ' + error.message, true); return; }
+    products = data || [];
+    const [v,a] = await Promise.all([
+      client.from('fleet_vehicles').select('id,name,license_plate,notes').order('name'),
+      client.from('vehicle_inventory').select('id,vehicle_id,product_id,quantity,notes,products(name,sku,unit)').order('created_at')
+    ]);
+    if (v.error || a.error) { notify('Fahrzeuginventur konnte nicht geladen werden: ' + (v.error || a.error).message, true); return; }
+    fleetVehicles = v.data || []; fleetAssignments = a.data || [];
+    renderFleetVehicles(); renderFleetSelects(); renderFleetAssignments();
+    show('fleetCountPanel'); hide('fleetCreatePanel');
   }
 
   async function login() {
@@ -491,6 +529,24 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       $('loginMsg').classList.add('error');
     } else {
       hide('loginMsg');
+    }
+  }
+
+  async function monteurLogin() {
+    const name = $('monteurName').value;
+    const pin = $('monteurPin').value.trim();
+    const msg = $('monteurLoginMsg'); msg.classList.remove('hidden','error'); msg.textContent = 'Anmeldung läuft…';
+    if (!name || !/^\\d{6}$/.test(pin)) { msg.textContent = 'Bitte Namen auswählen und eine 6-stellige PIN eingeben.'; msg.classList.add('error'); return; }
+    try {
+      const response = await fetch(MONTEUR_LOGIN_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,pin}) });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.session) throw new Error(result.error || 'Anmeldung fehlgeschlagen.');
+      const { error } = await client.auth.setSession({ access_token:result.session.access_token, refresh_token:result.session.refresh_token });
+      if (error) throw error;
+      $('monteurPin').value = '';
+      msg.classList.add('hidden');
+    } catch (error) {
+      msg.textContent = error.message || 'Anmeldung momentan nicht möglich.'; msg.classList.add('error');
     }
   }
 
@@ -1618,9 +1674,10 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const vehicleId = $('fleetSelectVehicle').value;
     if (!vehicleId) { $('fleetAssignmentsList').innerHTML = '<p class="muted">Bitte zuerst ein Fahrzeug auswählen.</p>'; return; }
     const rows = fleetAssignments.filter(a => a.vehicle_id === vehicleId).sort((x,y) => String(x.products?.name || '').localeCompare(String(y.products?.name || ''), 'de'));
-    $('fleetAssignmentsList').innerHTML = `<h3>Inventur für ${escapeHtml(fleetVehicles.find(v => v.id === vehicleId)?.name || '')}</h3>` + (rows.length ? '<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Gezählte Menge</th><th>Notiz</th><th>Aktion</th></tr></thead><tbody>' + rows.map(a => `<tr><td data-label="Artikel"><strong>${escapeHtml(a.products?.name || 'Artikel')}</strong>${a.products?.sku ? '<br><span class="muted">' + escapeHtml(a.products.sku) + '</span>' : ''}</td><td data-label="Gezählte Menge">${Number(a.quantity).toLocaleString('de-DE')} ${escapeHtml(a.products?.unit || 'Stück')}</td><td data-label="Notiz">${escapeHtml(a.notes || '–')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-edit-fleet-count="${a.id}">Ändern</button> <button type="button" class="danger smallbtn" data-delete-fleet-count="${a.id}">Löschen</button></td></tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Für dieses Fahrzeug wurden noch keine Artikel gezählt.</p>');
+    $('fleetAssignmentsList').innerHTML = `<h3>Inventur für ${escapeHtml(fleetVehicles.find(v => v.id === vehicleId)?.name || '')}</h3>` + (rows.length ? '<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Gezählte Menge</th><th>Notiz</th><th>Aktion</th></tr></thead><tbody>' + rows.map(a => `<tr><td data-label="Artikel"><strong>${escapeHtml(a.products?.name || 'Artikel')}</strong>${a.products?.sku ? '<br><span class="muted">' + escapeHtml(a.products.sku) + '</span>' : ''}</td><td data-label="Gezählte Menge">${Number(a.quantity).toLocaleString('de-DE')} ${escapeHtml(a.products?.unit || 'Stück')}</td><td data-label="Notiz">${escapeHtml(a.notes || '–')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-edit-fleet-count="${a.id}">Ändern</button> ${currentRole === 'office' ? `<button type="button" class="danger smallbtn" data-delete-fleet-count="${a.id}">Löschen</button>` : ''}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Für dieses Fahrzeug wurden noch keine Artikel gezählt.</p>');
   }
   async function saveFleetVehicle() {
+    if (currentRole !== 'office') return notify('Keine Berechtigung.', true);
     const name = $('fleetVehicleName').value.trim();
     if (!name) { notify('Bitte einen Fahrzeugnamen eingeben.', true); return; }
     const { error } = await client.from('fleet_vehicles').insert({name, license_plate:$('fleetVehiclePlate').value.trim() || null, notes:$('fleetVehicleNotes').value.trim() || null, created_by:currentUser.id});
@@ -1697,12 +1754,14 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await loadFleetInventory(); notify('Gezählte Menge aktualisiert.');
   }
   async function deleteFleetAssignment(id) {
+    if (currentRole !== 'office') return notify('Keine Berechtigung.', true);
     if (!confirm('Diesen Artikel aus der Fahrzeug-Inventur entfernen?')) return;
     const {error} = await client.from('vehicle_inventory').delete().eq('id',id);
     if (error) { notify('Eintrag konnte nicht gelöscht werden: '+error.message,true); return; }
     await loadFleetInventory(); notify('Inventur-Eintrag gelöscht.');
   }
   async function resetFleetInventory() {
+    if (currentRole !== 'office') return notify('Keine Berechtigung.', true);
     const password = prompt('Zum Zurücksetzen bitte das Editor-Passwort eingeben:');
     if (password === null) return;
     if (password !== EDITOR_PASSWORD) { alert('Falsches Passwort. Die Inventur wurde nicht zurückgesetzt.'); return; }
@@ -1758,6 +1817,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   function showMainView(view) {
+    if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
     hide('homeView'); hide('inventoryView'); hide('toolView'); hide('fleetInventoryView');
     if (view === 'inventory') show('inventoryView');
     else if (view === 'tools') show('toolView');
@@ -1807,12 +1867,14 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   };
 
   $('loginBtn').onclick = login;
+  $('monteurLoginBtn').onclick = monteurLogin;
+  $('monteurPin').addEventListener('keydown', e => { if (e.key === 'Enter') monteurLogin(); });
 
   $('password').addEventListener('keydown', e => {
     if (e.key === 'Enter') login();
   });
 
-  $('logoutBtn').onclick = () => client.auth.signOut();
+  $('logoutBtn').onclick = () => { currentRole = 'office'; editorMode = false; client.auth.signOut(); };
   $('refreshBtn').onclick = refreshAll;
   $('search').oninput = renderProducts;
 
