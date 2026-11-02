@@ -507,7 +507,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     products = data || [];
     const [v,a] = await Promise.all([
       client.from('fleet_vehicles').select('id,name,license_plate,notes').order('name'),
-      client.from('vehicle_inventory').select('id,vehicle_id,product_id,quantity,notes,products(name,sku,unit)').order('created_at')
+      client.from('vehicle_inventory').select('id,vehicle_id,product_id,quantity,notes,counted_by,products(name,sku,unit)').order('created_at')
     ]);
     if (v.error || a.error) { notify('Fahrzeuginventur konnte nicht geladen werden: ' + (v.error || a.error).message, true); return; }
     fleetVehicles = v.data || []; fleetAssignments = a.data || [];
@@ -1649,7 +1649,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (!client || !currentUser) return;
     const [v, a] = await Promise.all([
       client.from('fleet_vehicles').select('id,name,license_plate,notes').order('name'),
-      client.from('vehicle_inventory').select('id,vehicle_id,product_id,quantity,notes,products(name,sku,unit)').order('created_at')
+      client.from('vehicle_inventory').select('id,vehicle_id,product_id,quantity,notes,counted_by,products(name,sku,unit)').order('created_at')
     ]);
     if (v.error || a.error) {
       const err = v.error || a.error;
@@ -1685,10 +1685,14 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     $('fleetVehicleName').value=''; $('fleetVehiclePlate').value=''; $('fleetVehicleNotes').value='';
     await loadFleetInventory(); notify('Fahrzeug wurde angelegt.');
   }
+  function getInventoryRecorderName() {
+    return String(currentUser?.user_metadata?.name || currentUser?.user_metadata?.full_name || currentUser?.email || 'Unbekannt').trim();
+  }
+
   async function saveFleetAssignment() {
     const vehicle_id = $('fleetSelectVehicle').value, product_id = $('fleetSelectProduct').value, quantity = Number($('fleetCountQuantity').value);
     if (!vehicle_id || !product_id || !Number.isFinite(quantity) || quantity < 0) { notify('Bitte Fahrzeug, Artikel und eine gültige Menge auswählen.', true); return; }
-    const payload = {vehicle_id, product_id, quantity, notes:$('fleetCountNotes').value.trim() || null, updated_by:currentUser.id};
+    const payload = {vehicle_id, product_id, quantity, notes:$('fleetCountNotes').value.trim() || null, counted_by:getInventoryRecorderName(), updated_by:currentUser.id};
     const { error } = await client.from('vehicle_inventory').upsert(payload, {onConflict:'vehicle_id,product_id'});
     if (error) { notify('Inventur konnte nicht gespeichert werden: ' + error.message, true); return; }
     $('fleetCountNotes').value=''; await loadFleetInventory(); notify('Artikel und gezählte Menge wurden gespeichert.');
@@ -1702,7 +1706,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (!product) { notify('Kein Lagerartikel mit diesem Barcode oder dieser Artikelnummer gefunden.', true); return; }
     const existing = fleetAssignments.find(a => a.vehicle_id === vehicle_id && a.product_id === product.id);
     const quantity = Number(existing?.quantity || 0) + Number(quantityToAdd);
-    const payload = {vehicle_id, product_id:product.id, quantity, notes:String(notes || '').trim() || existing?.notes || null, updated_by:currentUser.id};
+    const payload = {vehicle_id, product_id:product.id, quantity, notes:String(notes || '').trim() || existing?.notes || null, counted_by:getInventoryRecorderName(), updated_by:currentUser.id};
     const {error} = await client.from('vehicle_inventory').upsert(payload, {onConflict:'vehicle_id,product_id'});
     if (error) { notify('Gescannter Artikel konnte nicht gespeichert werden: ' + error.message, true); return; }
     await loadFleetInventory();
@@ -1749,7 +1753,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const a = fleetAssignments.find(x => x.id === id); if (!a) return;
     const value = prompt('Gezählte Menge:', String(a.quantity)); if (value === null) return;
     const quantity = Number(value); if (!Number.isFinite(quantity) || quantity < 0) { notify('Bitte eine gültige Menge eingeben.', true); return; }
-    const {error} = await client.from('vehicle_inventory').update({quantity,updated_by:currentUser.id}).eq('id',id);
+    const {error} = await client.from('vehicle_inventory').update({quantity,counted_by:getInventoryRecorderName(),updated_by:currentUser.id}).eq('id',id);
     if (error) { notify('Menge konnte nicht geändert werden: '+error.message,true); return; }
     await loadFleetInventory(); notify('Gezählte Menge aktualisiert.');
   }
@@ -1782,7 +1786,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     };
     const rows = [[
       'Fahrzeug', 'Kennzeichen', 'Fahrzeugnotiz',
-      'Artikel', 'Artikelnummer', 'Gezählte Menge', 'Einheit', 'Artikelnotiz'
+      'Artikel', 'Artikelnummer', 'Gezählte Menge', 'Einheit', 'Artikelnotiz', 'Inventur aufgenommen von'
     ]];
     const sortedVehicles = [...fleetVehicles].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'de'));
     sortedVehicles.forEach(vehicle => {
@@ -1790,7 +1794,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         .filter(item => item.vehicle_id === vehicle.id)
         .sort((a,b)=>String(a.products?.name||'').localeCompare(String(b.products?.name||''),'de'));
       if (!assignments.length) {
-        rows.push([vehicle.name, vehicle.license_plate || '', vehicle.notes || '', '', '', '', '', '']);
+        rows.push([vehicle.name, vehicle.license_plate || '', vehicle.notes || '', '', '', '', '', '', '']);
         return;
       }
       assignments.forEach(item => rows.push([
@@ -1801,7 +1805,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         item.products?.sku || '',
         Number(item.quantity ?? 0).toLocaleString('de-DE'),
         item.products?.unit || 'Stück',
-        item.notes || ''
+        item.notes || '',
+        item.counted_by || ''
       ]));
     });
     const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
