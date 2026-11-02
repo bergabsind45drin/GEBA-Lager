@@ -214,6 +214,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
             <button type="button" id="fleetCreateTab">Fahrzeuge anlegen</button>
             <button type="button" id="fleetCountTab" class="secondary">Fahrzeuge zählen</button>
             <button type="button" id="fleetExportBtn" class="secondary">⇩ Inventur Export</button>
+            <button type="button" id="fleetResetBtn" class="danger">↻ Zurücksetzen</button>
           </div>
           <div id="fleetCreatePanel">
             <h3>Fahrzeug anlegen</h3>
@@ -1695,6 +1696,20 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (error) { notify('Eintrag konnte nicht gelöscht werden: '+error.message,true); return; }
     await loadFleetInventory(); notify('Inventur-Eintrag gelöscht.');
   }
+  async function resetFleetInventory() {
+    const password = prompt('Zum Zurücksetzen bitte das Editor-Passwort eingeben:');
+    if (password === null) return;
+    if (password !== EDITOR_PASSWORD) { alert('Falsches Passwort. Die Inventur wurde nicht zurückgesetzt.'); return; }
+    if (!confirm('Wirklich ALLE gezählten Inventur-Einträge aller Fahrzeuge löschen? Die angelegten Fahrzeuge bleiben erhalten. Dieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+    const { error } = await client.from('vehicle_inventory').delete().not('vehicle_id', 'is', null);
+    if (error) {
+      notify('Inventur konnte nicht zurückgesetzt werden: ' + error.message, true);
+      return;
+    }
+    await loadFleetInventory();
+    notify('Alle gezählten Inventur-Einträge wurden gelöscht. Die Fahrzeuge bleiben erhalten.');
+  }
+
   function exportFleetInventory() {
     const csvCell = value => {
       const text = String(value ?? '');
@@ -1753,6 +1768,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('fleetSelectVehicle').onchange = renderFleetAssignments;
   $('scanFleetArticleBtn').onclick = scanFleetArticle;
   $('fleetExportBtn').onclick = exportFleetInventory;
+  $('fleetResetBtn').onclick = resetFleetInventory;
   $('fleetAssignmentsList').addEventListener('click', e => { const edit=e.target.closest('[data-edit-fleet-count]'); const del=e.target.closest('[data-delete-fleet-count]'); if(edit) editFleetAssignment(edit.dataset.editFleetCount); if(del) deleteFleetAssignment(del.dataset.deleteFleetCount); });
   $('openInventoryBtn').onclick = () => showMainView('inventory');
   $('openToolsBtn').onclick = () => showMainView('tools');
