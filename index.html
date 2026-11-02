@@ -237,7 +237,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
             <h3>Fahrzeuge zählen</h3>
             <div class="tool-form">
               <div class="field"><label for="fleetSelectVehicle">Fahrzeug auswählen</label><select id="fleetSelectVehicle"><option value="">Fahrzeug auswählen…</option></select></div>
-              <div class="field"><label for="fleetSelectProduct">Lagerartikel auswählen</label><select id="fleetSelectProduct"><option value="">Artikel auswählen…</option></select><button type="button" id="scanFleetArticleBtn" class="secondary" style="margin-top:8px;width:100%">▦ Artikel für dieses Fahrzeug scannen</button></div>
+              <div class="field"><label for="fleetProductSearch">Artikel suchen</label><input id="fleetProductSearch" type="search" placeholder="Name, Artikelnummer oder Barcode eingeben…" autocomplete="off"><label for="fleetSelectProduct" style="margin-top:8px">Treffer auswählen</label><select id="fleetSelectProduct"><option value="">Artikel auswählen…</option></select><button type="button" id="scanFleetArticleBtn" class="secondary" style="margin-top:8px;width:100%">▦ Artikel für dieses Fahrzeug scannen</button></div>
               <div class="field"><label for="fleetCountQuantity">Gezählte Menge (manuelle Zuordnung)</label><input id="fleetCountQuantity" type="number" min="0" step="0.01" value="1"></div>
               <div class="field"><label for="fleetCountNotes">Notiz (optional)</label><input id="fleetCountNotes" placeholder="z. B. Lagerfach / Zustand"></div>
               <div class="wide"><button type="button" id="saveFleetCountBtn">＋ Artikel dem Fahrzeug zuordnen</button></div>
@@ -1666,9 +1666,11 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const vs = $('fleetSelectVehicle'), ps = $('fleetSelectProduct');
     const oldV = vs.value, oldP = ps.value;
     vs.innerHTML = '<option value="">Fahrzeug auswählen…</option>' + fleetVehicles.map(v => `<option value="${v.id}">${escapeHtml(v.name)}${v.license_plate ? ' – ' + escapeHtml(v.license_plate) : ''}</option>`).join('');
-    ps.innerHTML = '<option value="">Artikel auswählen…</option>' + products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.sku ? ' – ' + escapeHtml(p.sku) : ''} (Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')})</option>`).join('');
+    const search = String($('fleetProductSearch')?.value || '').trim().toLocaleLowerCase('de-DE');
+    const matchingProducts = products.filter(p => !search || [p.name, p.sku, p.barcode].some(value => String(value || '').toLocaleLowerCase('de-DE').includes(search)));
+    ps.innerHTML = '<option value="">Artikel auswählen…</option>' + matchingProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.sku ? ' – ' + escapeHtml(p.sku) : ''} (Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')})</option>`).join('');
     if (fleetVehicles.some(v => v.id === oldV)) vs.value = oldV;
-    if (products.some(p => p.id === oldP)) ps.value = oldP;
+    if (matchingProducts.some(p => p.id === oldP)) ps.value = oldP;
   }
   function renderFleetAssignments() {
     const vehicleId = $('fleetSelectVehicle').value;
@@ -1835,6 +1837,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('fleetCreateTab').onclick = () => { show('fleetCreatePanel'); hide('fleetCountPanel'); $('fleetCreateTab').classList.remove('secondary'); $('fleetCountTab').classList.add('secondary'); };
   $('fleetCountTab').onclick = () => { hide('fleetCreatePanel'); show('fleetCountPanel'); $('fleetCountTab').classList.remove('secondary'); $('fleetCreateTab').classList.add('secondary'); renderFleetSelects(); renderFleetAssignments(); };
   $('saveFleetVehicleBtn').onclick = saveFleetVehicle;
+  $('fleetProductSearch').addEventListener('input', renderFleetSelects);
   $('saveFleetCountBtn').onclick = saveFleetAssignment;
   $('fleetSelectVehicle').onchange = renderFleetAssignments;
   $('scanFleetArticleBtn').onclick = scanFleetArticle;
