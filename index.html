@@ -1660,7 +1660,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     renderFleetVehicles(); renderFleetSelects(); renderFleetAssignments();
   }
   function renderFleetVehicles() {
-    $('fleetVehiclesList').innerHTML = fleetVehicles.length ? '<div class="table-wrap"><table><thead><tr><th>Fahrzeug</th><th>Kennzeichen</th><th>Notiz</th></tr></thead><tbody>' + fleetVehicles.map(v => `<tr><td data-label="Fahrzeug"><strong>${escapeHtml(v.name)}</strong></td><td data-label="Kennzeichen">${escapeHtml(v.license_plate || '–')}</td><td data-label="Notiz">${escapeHtml(v.notes || '–')}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Noch keine Fahrzeuge angelegt.</p>';
+    $('fleetVehiclesList').innerHTML = fleetVehicles.length ? '<div class="table-wrap"><table><thead><tr><th>Fahrzeug</th><th>Kennzeichen</th><th>Notiz</th>' + (currentRole === 'office' ? '<th>Aktion</th>' : '') + '</tr></thead><tbody>' + fleetVehicles.map(v => `<tr><td data-label="Fahrzeug"><strong>${escapeHtml(v.name)}</strong></td><td data-label="Kennzeichen">${escapeHtml(v.license_plate || '–')}</td><td data-label="Notiz">${escapeHtml(v.notes || '–')}</td>${currentRole === 'office' ? `<td data-label="Aktion"><button type="button" class="secondary smallbtn" data-edit-fleet-vehicle="${v.id}">Bearbeiten</button></td>` : ''}</tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Noch keine Fahrzeuge angelegt.</p>';
   }
   function renderFleetSelects() {
     const vs = $('fleetSelectVehicle'), ps = $('fleetSelectProduct');
@@ -1677,6 +1677,26 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (!vehicleId) { $('fleetAssignmentsList').innerHTML = '<p class="muted">Bitte zuerst ein Fahrzeug auswählen.</p>'; return; }
     const rows = fleetAssignments.filter(a => a.vehicle_id === vehicleId).sort((x,y) => String(x.products?.name || '').localeCompare(String(y.products?.name || ''), 'de'));
     $('fleetAssignmentsList').innerHTML = `<h3>Inventur für ${escapeHtml(fleetVehicles.find(v => v.id === vehicleId)?.name || '')}</h3>` + (rows.length ? '<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Gezählte Menge</th><th>Notiz</th><th>Aktion</th></tr></thead><tbody>' + rows.map(a => `<tr><td data-label="Artikel"><strong>${escapeHtml(a.products?.name || 'Artikel')}</strong>${a.products?.sku ? '<br><span class="muted">' + escapeHtml(a.products.sku) + '</span>' : ''}</td><td data-label="Gezählte Menge">${Number(a.quantity).toLocaleString('de-DE')} ${escapeHtml(a.products?.unit || 'Stück')}</td><td data-label="Notiz">${escapeHtml(a.notes || '–')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-edit-fleet-count="${a.id}">Ändern</button> ${currentRole === 'office' ? `<button type="button" class="danger smallbtn" data-delete-fleet-count="${a.id}">Löschen</button>` : ''}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Für dieses Fahrzeug wurden noch keine Artikel gezählt.</p>');
+  }
+  async function editFleetVehicle(vehicleId) {
+    if (currentRole !== 'office') return notify('Keine Berechtigung.', true);
+    const vehicle = fleetVehicles.find(v => v.id === vehicleId);
+    if (!vehicle) return;
+    const name = prompt('Fahrzeugname:', vehicle.name);
+    if (name === null) return;
+    if (!name.trim()) return notify('Der Fahrzeugname darf nicht leer sein.', true);
+    const plate = prompt('Kennzeichen (optional):', vehicle.license_plate || '');
+    if (plate === null) return;
+    const notes = prompt('Notiz (optional):', vehicle.notes || '');
+    if (notes === null) return;
+    const { error } = await client.from('fleet_vehicles').update({
+      name: name.trim(),
+      license_plate: plate.trim() || null,
+      notes: notes.trim() || null
+    }).eq('id', vehicleId);
+    if (error) return notify('Fahrzeug konnte nicht geändert werden: ' + error.message, true);
+    await loadFleetInventory();
+    notify('Fahrzeugdaten wurden aktualisiert.');
   }
   async function saveFleetVehicle() {
     if (currentRole !== 'office') return notify('Keine Berechtigung.', true);
@@ -1837,6 +1857,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('fleetCreateTab').onclick = () => { show('fleetCreatePanel'); hide('fleetCountPanel'); $('fleetCreateTab').classList.remove('secondary'); $('fleetCountTab').classList.add('secondary'); };
   $('fleetCountTab').onclick = () => { hide('fleetCreatePanel'); show('fleetCountPanel'); $('fleetCountTab').classList.remove('secondary'); $('fleetCreateTab').classList.add('secondary'); renderFleetSelects(); renderFleetAssignments(); };
   $('saveFleetVehicleBtn').onclick = saveFleetVehicle;
+  $('fleetVehiclesList').addEventListener('click', event => { const button = event.target.closest('[data-edit-fleet-vehicle]'); if (button) editFleetVehicle(button.dataset.editFleetVehicle); });
   $('fleetProductSearch').addEventListener('input', renderFleetSelects);
   $('saveFleetCountBtn').onclick = saveFleetAssignment;
   $('fleetSelectVehicle').onchange = renderFleetAssignments;
