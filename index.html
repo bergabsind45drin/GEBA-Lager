@@ -1637,34 +1637,43 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     $('fleetCountNotes').value=''; await loadFleetInventory(); notify('Artikel und gezählte Menge wurden gespeichert.');
   }
 
-  async function addScannedFleetArticle(code) {
+  async function addScannedFleetArticle(code, quantityToAdd = 1, notes = '') {
     const vehicle_id = $('fleetSelectVehicle').value;
     if (!vehicle_id) { notify('Bitte zuerst das Fahrzeug auswählen, in dem du zählst.', true); return; }
     const value = String(code || '').trim().toLowerCase();
     const product = products.find(p => [p.barcode, p.sku].some(v => String(v || '').trim().toLowerCase() === value));
     if (!product) { notify('Kein Lagerartikel mit diesem Barcode oder dieser Artikelnummer gefunden.', true); return; }
     const existing = fleetAssignments.find(a => a.vehicle_id === vehicle_id && a.product_id === product.id);
-    const quantity = Number(existing?.quantity || 0) + 1;
-    const payload = {vehicle_id, product_id:product.id, quantity, updated_by:currentUser.id};
+    const quantity = Number(existing?.quantity || 0) + Number(quantityToAdd);
+    const payload = {vehicle_id, product_id:product.id, quantity, notes:String(notes || '').trim() || existing?.notes || null, updated_by:currentUser.id};
     const {error} = await client.from('vehicle_inventory').upsert(payload, {onConflict:'vehicle_id,product_id'});
     if (error) { notify('Gescannter Artikel konnte nicht gespeichert werden: ' + error.message, true); return; }
     await loadFleetInventory();
     const vehicle = fleetVehicles.find(v => v.id === vehicle_id);
-    notify(`${product.name}: Menge für ${vehicle?.name || 'Fahrzeug'} auf ${quantity} erhöht.`);
+    notify(`${product.name}: Menge für ${vehicle?.name || 'Fahrzeug'} auf ${quantity} gesetzt.`);
   }
 
   async function scanFleetArticle() {
     if (!$('fleetSelectVehicle').value) { notify('Bitte zuerst ein Fahrzeug auswählen.', true); return; }
-    openModal('Artikel für Fahrzeug-Inventur scannen', `<p class="muted">Scanne den Barcode oder QR-Code des Lagerartikels. Jeder erfolgreiche Scan zählt den Artikel einmal. Du kannst den Code auch manuell eingeben.</p><div id="fleetArticleReader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div><div class="field" style="margin-top:12px"><label>Barcode / Artikelnummer</label><input id="fleetArticleScanCode" placeholder="Code hier eingeben"></div><button id="fleetArticleScanContinue" style="width:100%">Code übernehmen und zählen</button><div id="fleetArticleScanMsg" class="muted" style="margin-top:8px"></div>`);
-    const addCode = async code => {
-      const value = String(code || '').trim();
+    openModal('Artikel für Fahrzeug-Inventur scannen', `<p class="muted">Scanne den Barcode oder QR-Code des Lagerartikels. Der Artikel wird zunächst nur angezeigt und noch nicht gespeichert.</p><div id="fleetArticleReader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div><div class="field" style="margin-top:12px"><label>Barcode / Artikelnummer</label><input id="fleetArticleScanCode" placeholder="Code hier eingeben"></div><button id="fleetArticleScanContinue" style="width:100%">Artikel anzeigen</button><div id="fleetArticleScanMsg" class="muted" style="margin-top:8px"></div>`);
+    const showProduct = async code => {
+      const value = String(code || '').trim().toLowerCase();
       if (!value) { $('fleetArticleScanMsg').textContent = 'Bitte einen Barcode oder eine Artikelnummer eingeben.'; return; }
       const scanner = html5Scanner; html5Scanner = null;
       if (scanner) { try { await scanner.stop(); scanner.clear(); } catch (e) {} }
-      closeModal();
-      await addScannedFleetArticle(value);
+      const product = products.find(p => [p.barcode, p.sku].some(v => String(v || '').trim().toLowerCase() === value));
+      if (!product) { $('fleetArticleScanMsg').textContent = 'Kein Lagerartikel mit diesem Barcode oder dieser Artikelnummer gefunden.'; return; }
+      const existing = fleetAssignments.find(a => a.vehicle_id === $('fleetSelectVehicle').value && a.product_id === product.id);
+      $('modalContent').innerHTML = `<p><strong>Erkannter Artikel:</strong> ${escapeHtml(product.name)}</p>${product.sku ? `<p class="muted">Artikelnummer: ${escapeHtml(product.sku)}</p>` : ''}<div class="field"><label for="fleetScannedQuantity">Menge</label><input id="fleetScannedQuantity" type="number" min="0.01" step="0.01" value="1"></div><div class="field"><label for="fleetScannedNotes">Notiz (optional)</label><input id="fleetScannedNotes" placeholder="z. B. Zustand / Lagerfach" value="${escapeHtml(existing?.notes || '')}"></div><button id="fleetScannedAddBtn" style="width:100%">＋ Zum Fahrzeug hinzufügen</button><button id="fleetScannedAgainBtn" class="secondary" style="width:100%;margin-top:8px">Weiteren Artikel scannen</button>`;
+      $('fleetScannedAddBtn').onclick = async () => {
+        const qty = Number($('fleetScannedQuantity').value);
+        if (!Number.isFinite(qty) || qty <= 0) { notify('Bitte eine gültige Menge größer 0 eingeben.', true); return; }
+        await addScannedFleetArticle(value, qty, $('fleetScannedNotes').value);
+        closeModal();
+      };
+      $('fleetScannedAgainBtn').onclick = () => scanFleetArticle();
     };
-    $('fleetArticleScanContinue').onclick = () => addCode($('fleetArticleScanCode').value);
+    $('fleetArticleScanContinue').onclick = () => showProduct($('fleetArticleScanCode').value);
     if (!navigator.mediaDevices?.getUserMedia || !window.Html5Qrcode) {
       $('fleetArticleScanMsg').textContent = 'Kamera-Scanner nicht verfügbar. Bitte den Code manuell eingeben.';
       return;
@@ -1672,10 +1681,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     try {
       html5Scanner = new Html5Qrcode('fleetArticleReader');
       await html5Scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:250,height:150}, aspectRatio:1.5}, async decodedText => {
-        const scanner = html5Scanner; html5Scanner = null;
-        if (scanner) { try { await scanner.stop(); scanner.clear(); } catch (e) {} }
-        closeModal();
-        await addScannedFleetArticle(decodedText);
+        await showProduct(decodedText);
       }, () => {});
     } catch (e) {
       $('fleetArticleScanMsg').textContent = 'Kamera konnte nicht gestartet werden. Bitte HTTPS und Kamerazugriff prüfen oder den Code manuell eingeben.';
