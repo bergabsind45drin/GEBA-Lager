@@ -118,6 +118,24 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   .stat span{font-size:.78rem}
   #filterBtn,#refreshBtn{font-size:.78rem}
 }
+
+/* Dark Mode */
+body.dark-mode{background:#111827;color:#e5e7eb}
+body.dark-mode .panel,body.dark-mode .modal-card{background:#1f2937;color:#e5e7eb;border-color:#374151;box-shadow:0 3px 12px #0004}
+body.dark-mode .stat,body.dark-mode .msg{background:#27364a;color:#e5e7eb}
+body.dark-mode .stat span,body.dark-mode .muted,body.dark-mode footer{color:#aab8c8}
+body.dark-mode th{color:#b8c7d8}
+body.dark-mode td,body.dark-mode th{border-color:#374151}
+body.dark-mode .row input,body.dark-mode .row select,body.dark-mode .field input,body.dark-mode .field select{background:#111827;color:#e5e7eb;border-color:#4b5563;color-scheme:dark}
+body.dark-mode .pill{background:#263f59;color:#c5e3ff}
+body.dark-mode button.secondary{background:#334155;color:#e5e7eb}
+body.dark-mode .tools-tile{background:#26384d;color:#d6eaff;border-color:#45617e}
+body.dark-mode tbody tr{background:#1f2937!important;border-color:#374151;box-shadow:0 2px 8px #0003}
+body.dark-mode tbody td::before{color:#aab8c8}
+body.dark-mode .error{background:#4a2528;color:#ffd6d6}
+#darkModeBtn{white-space:nowrap;align-self:center}
+@media(max-width:700px){#darkModeBtn{margin-left:auto;align-self:flex-start}}
+
 </style>
 </head>
 <body>
@@ -129,6 +147,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     <button id="editorModeBtn" class="secondary smallbtn">✎ Editor-Modus</button>
     <button id="logoutBtn" class="secondary smallbtn">Abmelden</button>
   </div>
+  <button id="darkModeBtn" class="secondary smallbtn" type="button" aria-pressed="false">🌙 Dark Mode</button>
 </header>
 
 <main class="wrap">
@@ -1652,6 +1671,26 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   closeBtn.addEventListener('click', closeImage);
   lightbox.addEventListener('click', event => { if (event.target === lightbox) closeImage(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !lightbox.classList.contains('hidden')) closeImage(); });
+})();
+</script>
+
+<script>
+(() => {
+  const button = document.getElementById('darkModeBtn');
+  if (!button) return;
+  const apply = enabled => {
+    document.body.classList.toggle('dark-mode', enabled);
+    button.textContent = enabled ? '☀️ Light Mode' : '🌙 Dark Mode';
+    button.setAttribute('aria-pressed', String(enabled));
+  };
+  let enabled = false;
+  try { enabled = localStorage.getItem('geba-dark-mode') === '1'; } catch (e) {}
+  apply(enabled);
+  button.addEventListener('click', () => {
+    enabled = !document.body.classList.contains('dark-mode');
+    apply(enabled);
+    try { localStorage.setItem('geba-dark-mode', enabled ? '1' : '0'); } catch (e) {}
+  });
 })();
 </script>
 </body>
