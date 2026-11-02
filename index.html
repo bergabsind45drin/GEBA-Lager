@@ -201,13 +201,15 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <button id="openToolsBtn" class="module-tile tools-tile" type="button">
           <span class="module-icon">🧰</span><strong>Werkzeuge</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
         </button>
+        <button id="openFleetInventoryBtn" class="module-tile" type="button">
+          <span class="module-icon">📋</span><strong>Inventur</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
+        </button>
       </div>
-      <section class="panel" id="homeInventorySection" style="margin-top:16px">
-        <div class="row" style="justify-content:space-between">
-          <div><h2 style="margin:0">📋 Inventur</h2><p class="muted" style="margin:5px 0 0">Lagerartikel den einzelnen Fahrzeugen zuordnen und gezählte Mengen erfassen.</p></div>
-          <button type="button" id="toggleFleetInventoryBtn" class="secondary">Inventur öffnen ▾</button>
-        </div>
-        <div id="fleetInventoryPanel" class="hidden" style="margin-top:16px">
+    </section>
+
+    <section id="fleetInventoryView" class="hidden">
+      <div class="row view-heading"><button id="fleetHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>📋 Inventur</h2></div>
+      <section class="panel" id="fleetInventoryPanel" style="margin-top:16px">
           <div class="row" style="gap:8px;margin-bottom:14px">
             <button type="button" id="fleetCreateTab">Fahrzeuge anlegen</button>
             <button type="button" id="fleetCountTab" class="secondary">Fahrzeuge zählen</button>
@@ -228,15 +230,14 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
             <h3>Fahrzeuge zählen</h3>
             <div class="tool-form">
               <div class="field"><label for="fleetSelectVehicle">Fahrzeug auswählen</label><select id="fleetSelectVehicle"><option value="">Fahrzeug auswählen…</option></select></div>
-              <div class="field"><label for="fleetSelectProduct">Lagerartikel auswählen</label><select id="fleetSelectProduct"><option value="">Artikel auswählen…</option></select></div>
-              <div class="field"><label for="fleetCountQuantity">Gezählte Menge</label><input id="fleetCountQuantity" type="number" min="0" step="0.01" value="1"></div>
+              <div class="field"><label for="fleetSelectProduct">Lagerartikel auswählen</label><select id="fleetSelectProduct"><option value="">Artikel auswählen…</option></select><button type="button" id="scanFleetArticleBtn" class="secondary" style="margin-top:8px;width:100%">▦ Artikel für dieses Fahrzeug scannen</button></div>
+              <div class="field"><label for="fleetCountQuantity">Gezählte Menge (manuelle Zuordnung)</label><input id="fleetCountQuantity" type="number" min="0" step="0.01" value="1"></div>
               <div class="field"><label for="fleetCountNotes">Notiz (optional)</label><input id="fleetCountNotes" placeholder="z. B. Lagerfach / Zustand"></div>
               <div class="wide"><button type="button" id="saveFleetCountBtn">＋ Artikel dem Fahrzeug zuordnen</button></div>
             </div>
             <div id="fleetAssignmentsList" style="margin-top:16px"><p class="muted">Bitte zuerst ein Fahrzeug auswählen.</p></div>
           </div>
           <div id="fleetInventoryMsg" class="msg hidden"></div>
-        </div>
       </section>
     </section>
 
@@ -1634,6 +1635,52 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (error) { notify('Inventur konnte nicht gespeichert werden: ' + error.message, true); return; }
     $('fleetCountNotes').value=''; await loadFleetInventory(); notify('Artikel und gezählte Menge wurden gespeichert.');
   }
+
+  async function addScannedFleetArticle(code) {
+    const vehicle_id = $('fleetSelectVehicle').value;
+    if (!vehicle_id) { notify('Bitte zuerst das Fahrzeug auswählen, in dem du zählst.', true); return; }
+    const value = String(code || '').trim().toLowerCase();
+    const product = products.find(p => [p.barcode, p.sku].some(v => String(v || '').trim().toLowerCase() === value));
+    if (!product) { notify('Kein Lagerartikel mit diesem Barcode oder dieser Artikelnummer gefunden.', true); return; }
+    const existing = fleetAssignments.find(a => a.vehicle_id === vehicle_id && a.product_id === product.id);
+    const quantity = Number(existing?.quantity || 0) + 1;
+    const payload = {vehicle_id, product_id:product.id, quantity, updated_by:currentUser.id};
+    const {error} = await client.from('vehicle_inventory').upsert(payload, {onConflict:'vehicle_id,product_id'});
+    if (error) { notify('Gescannter Artikel konnte nicht gespeichert werden: ' + error.message, true); return; }
+    await loadFleetInventory();
+    const vehicle = fleetVehicles.find(v => v.id === vehicle_id);
+    notify(`${product.name}: Menge für ${vehicle?.name || 'Fahrzeug'} auf ${quantity} erhöht.`);
+  }
+
+  async function scanFleetArticle() {
+    if (!$('fleetSelectVehicle').value) { notify('Bitte zuerst ein Fahrzeug auswählen.', true); return; }
+    openModal('Artikel für Fahrzeug-Inventur scannen', `<p class="muted">Scanne den Barcode oder QR-Code des Lagerartikels. Jeder erfolgreiche Scan zählt den Artikel einmal. Du kannst den Code auch manuell eingeben.</p><div id="fleetArticleReader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div><div class="field" style="margin-top:12px"><label>Barcode / Artikelnummer</label><input id="fleetArticleScanCode" placeholder="Code hier eingeben"></div><button id="fleetArticleScanContinue" style="width:100%">Code übernehmen und zählen</button><div id="fleetArticleScanMsg" class="muted" style="margin-top:8px"></div>`);
+    const addCode = async code => {
+      const value = String(code || '').trim();
+      if (!value) { $('fleetArticleScanMsg').textContent = 'Bitte einen Barcode oder eine Artikelnummer eingeben.'; return; }
+      const scanner = html5Scanner; html5Scanner = null;
+      if (scanner) { try { await scanner.stop(); scanner.clear(); } catch (e) {} }
+      closeModal();
+      await addScannedFleetArticle(value);
+    };
+    $('fleetArticleScanContinue').onclick = () => addCode($('fleetArticleScanCode').value);
+    if (!navigator.mediaDevices?.getUserMedia || !window.Html5Qrcode) {
+      $('fleetArticleScanMsg').textContent = 'Kamera-Scanner nicht verfügbar. Bitte den Code manuell eingeben.';
+      return;
+    }
+    try {
+      html5Scanner = new Html5Qrcode('fleetArticleReader');
+      await html5Scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:250,height:150}, aspectRatio:1.5}, async decodedText => {
+        const scanner = html5Scanner; html5Scanner = null;
+        if (scanner) { try { await scanner.stop(); scanner.clear(); } catch (e) {} }
+        closeModal();
+        await addScannedFleetArticle(decodedText);
+      }, () => {});
+    } catch (e) {
+      $('fleetArticleScanMsg').textContent = 'Kamera konnte nicht gestartet werden. Bitte HTTPS und Kamerazugriff prüfen oder den Code manuell eingeben.';
+    }
+  }
+
   async function editFleetAssignment(id) {
     const a = fleetAssignments.find(x => x.id === id); if (!a) return;
     const value = prompt('Gezählte Menge:', String(a.quantity)); if (value === null) return;
@@ -1649,29 +1696,62 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await loadFleetInventory(); notify('Inventur-Eintrag gelöscht.');
   }
   function exportFleetInventory() {
-    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const sortedVehicles = [...fleetVehicles].sort((a,b)=>a.name.localeCompare(b.name,'de'));
-    const body = sortedVehicles.map(v => {
-      const rows = fleetAssignments.filter(a=>a.vehicle_id===v.id).sort((a,b)=>String(a.products?.name||'').localeCompare(String(b.products?.name||''),'de'));
-      return `<section class="vehicle"><h2>${esc(v.name)} ${v.license_plate ? '<small>('+esc(v.license_plate)+')</small>' : ''}</h2>${v.notes ? '<p>'+esc(v.notes)+'</p>' : ''}<table><thead><tr><th>Artikel</th><th>Artikelnummer</th><th>Gezählte Menge</th><th>Einheit</th><th>Notiz</th></tr></thead><tbody>${rows.length ? rows.map(a=>`<tr><td>${esc(a.products?.name||'Artikel')}</td><td>${esc(a.products?.sku||'–')}</td><td>${Number(a.quantity).toLocaleString('de-DE')}</td><td>${esc(a.products?.unit||'Stück')}</td><td>${esc(a.notes||'')}</td></tr>`).join('') : '<tr><td colspan="5">Noch keine Artikel gezählt.</td></tr>'}</tbody></table><p class="count">${rows.length} Artikelpositionen</p></section>`;
-    }).join('');
-    const html = `<!doctype html><html lang="de"><meta charset="utf-8"><title>GEBA-Lager – Fahrzeug-Inventur</title><style>body{font:14px Arial,sans-serif;color:#17211d;margin:28px}h1{color:#075b9b;border-bottom:3px solid #0878d4;padding-bottom:10px}.vehicle{margin:26px 0 34px;break-inside:avoid}.vehicle h2{background:#eaf4fc;padding:12px;border-left:5px solid #0878d4}.vehicle h2 small{font-weight:400;color:#526b80}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccd8e2;padding:9px;text-align:left}th{background:#f0f5f9}.count{color:#526b80;font-size:12px;text-align:right}@media print{body{margin:14mm}.vehicle{break-inside:avoid}}</style><h1>GEBA-Lager – Fahrzeug-Inventur</h1><p>Erstellt am ${new Date().toLocaleString('de-DE')}</p>${body || '<p>Es sind noch keine Fahrzeuge angelegt.</p>'}<script>window.onload=()=>window.print()<\/script></html>`;
-    const blob = new Blob([html], {type:'text/html;charset=utf-8'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='GEBA-Fahrzeug-Inventur.html'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
+    const csvCell = value => {
+      const text = String(value ?? '');
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    const rows = [[
+      'Fahrzeug', 'Kennzeichen', 'Fahrzeugnotiz',
+      'Artikel', 'Artikelnummer', 'Gezählte Menge', 'Einheit', 'Artikelnotiz'
+    ]];
+    const sortedVehicles = [...fleetVehicles].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'de'));
+    sortedVehicles.forEach(vehicle => {
+      const assignments = fleetAssignments
+        .filter(item => item.vehicle_id === vehicle.id)
+        .sort((a,b)=>String(a.products?.name||'').localeCompare(String(b.products?.name||''),'de'));
+      if (!assignments.length) {
+        rows.push([vehicle.name, vehicle.license_plate || '', vehicle.notes || '', '', '', '', '', '']);
+        return;
+      }
+      assignments.forEach(item => rows.push([
+        vehicle.name,
+        vehicle.license_plate || '',
+        vehicle.notes || '',
+        item.products?.name || 'Artikel',
+        item.products?.sku || '',
+        Number(item.quantity ?? 0).toLocaleString('de-DE'),
+        item.products?.unit || 'Stück',
+        item.notes || ''
+      ]));
+    });
+    const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'GEBA-Fahrzeug-Inventur.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
 
   function showMainView(view) {
-    hide('homeView'); hide('inventoryView'); hide('toolView');
+    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('fleetInventoryView');
     if (view === 'inventory') show('inventoryView');
     else if (view === 'tools') show('toolView');
+    else if (view === 'fleet') show('fleetInventoryView');
     else show('homeView');
     window.scrollTo(0, 0);
   }
-  $('toggleFleetInventoryBtn').onclick = async () => { const panel=$('fleetInventoryPanel'); panel.classList.toggle('hidden'); $('toggleFleetInventoryBtn').textContent=panel.classList.contains('hidden')?'Inventur öffnen ▾':'Inventur schließen ▴'; if(!panel.classList.contains('hidden')) await loadFleetInventory(); };
+  $('openFleetInventoryBtn').onclick = async () => { showMainView('fleet'); await loadFleetInventory(); };
+  $('fleetHomeBtn').onclick = () => showMainView('home');
   $('fleetCreateTab').onclick = () => { show('fleetCreatePanel'); hide('fleetCountPanel'); $('fleetCreateTab').classList.remove('secondary'); $('fleetCountTab').classList.add('secondary'); };
   $('fleetCountTab').onclick = () => { hide('fleetCreatePanel'); show('fleetCountPanel'); $('fleetCountTab').classList.remove('secondary'); $('fleetCreateTab').classList.add('secondary'); renderFleetSelects(); renderFleetAssignments(); };
   $('saveFleetVehicleBtn').onclick = saveFleetVehicle;
   $('saveFleetCountBtn').onclick = saveFleetAssignment;
   $('fleetSelectVehicle').onchange = renderFleetAssignments;
+  $('scanFleetArticleBtn').onclick = scanFleetArticle;
   $('fleetExportBtn').onclick = exportFleetInventory;
   $('fleetAssignmentsList').addEventListener('click', e => { const edit=e.target.closest('[data-edit-fleet-count]'); const del=e.target.closest('[data-delete-fleet-count]'); if(edit) editFleetAssignment(edit.dataset.editFleetCount); if(del) deleteFleetAssignment(del.dataset.deleteFleetCount); });
   $('openInventoryBtn').onclick = () => showMainView('inventory');
