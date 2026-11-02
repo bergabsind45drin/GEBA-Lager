@@ -757,6 +757,36 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await refreshAll();
   }
 
+  const productImageCache = new Map();
+  function loadProductListImages() {
+    const images = [...document.querySelectorAll('img[data-product-image]')];
+    const loadOne = async img => {
+      const id = img.dataset.productImage;
+      if (!id || img.dataset.loading === '1') return;
+      img.dataset.loading = '1';
+      try {
+        let imageData = productImageCache.get(id);
+        if (imageData === undefined) {
+          const { data, error } = await client.from('products').select('image_data').eq('id', id).single();
+          if (error) throw error;
+          imageData = data?.image_data || null;
+          productImageCache.set(id, imageData);
+        }
+        if (imageData) { img.src = imageData; img.style.display = 'block'; }
+        else img.remove();
+      } catch (error) {
+        console.warn('Artikelbild konnte nicht geladen werden:', id, error);
+        img.remove();
+      }
+    };
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => { if (entry.isIntersecting) { observer.unobserve(entry.target); loadOne(entry.target); } });
+      }, { rootMargin: '180px' });
+      images.forEach(img => observer.observe(img));
+    } else images.forEach(loadOne);
+  }
+
   function renderProducts() {
     const q = $('search').value.toLowerCase().trim();
 
@@ -770,8 +800,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     $('productsBody').innerHTML = list.map(p => `
       <tr class="${Number(p.quantity) <= Number(p.min_quantity || 0) ? 'low-stock-row' : ''}">
         <td data-label="Artikel">
-          
           <b>${escapeHtml(p.name)}</b><br>
+          <img class="product-thumb" data-product-image="${p.id}" alt="Foto von ${escapeHtml(p.name)}" loading="lazy" style="display:none">
           <span class="muted">${escapeHtml(p.sku || p.barcode || '')}</span>
         </td>
         <td data-label="Bestand"><b>${Number(p.quantity).toLocaleString('de-DE')}</b></td>
