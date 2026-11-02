@@ -135,6 +135,9 @@ body.dark-mode button.secondary{background:#334155;color:#e5e7eb}
 body.dark-mode .tools-tile{background:#26384d!important;color:#d6eaff;border-color:#45617e}
 body.dark-mode .inventory-tile{background:#174b78!important;color:#f1f7ff}
 body.dark-mode tbody tr{background:#1f2937!important;border-color:#374151;box-shadow:0 2px 8px #0003}
+body.dark-mode tbody tr.low-stock-row{background:#fff0b8!important;color:#493500!important;border-color:#e5c45a!important;box-shadow:0 2px 8px #0003}
+body.dark-mode tbody tr.low-stock-row td,body.dark-mode tbody tr.low-stock-row td::before,body.dark-mode tbody tr.low-stock-row .muted{color:#493500!important}
+body.dark-mode tbody tr.low-stock-row .pill.low{background:#ffe19a!important;color:#704400!important}
 body.dark-mode tbody td::before{color:#aab8c8}
 body.dark-mode .error{background:#4a2528;color:#ffd6d6}
 body.dark-mode .modal{background:#08111fdd}
@@ -765,7 +768,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     );
 
     $('productsBody').innerHTML = list.map(p => `
-      <tr style="${Number(p.quantity) <= Number(p.min_quantity || 0) ? 'background:#fff8eb' : ''}">
+      <tr class="${Number(p.quantity) <= Number(p.min_quantity || 0) ? 'low-stock-row' : ''}">
         <td data-label="Artikel">
           
           <b>${escapeHtml(p.name)}</b><br>
