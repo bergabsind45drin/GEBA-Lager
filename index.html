@@ -940,6 +940,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   function setEditorMode(enabled) {
     editorMode = enabled;
+    if (typeof renderFleetVehicles === 'function' && $('fleetVehiclesList')) renderFleetVehicles();
     $('editorModeBtn').textContent = enabled ? '🔒 Editor beenden' : '✎ Editor-Modus';
     $('editorModeBtn').classList.toggle('danger', enabled);
     renderMovements();
@@ -1660,7 +1661,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     renderFleetVehicles(); renderFleetSelects(); renderFleetAssignments();
   }
   function renderFleetVehicles() {
-    $('fleetVehiclesList').innerHTML = fleetVehicles.length ? '<div class="table-wrap"><table><thead><tr><th>Fahrzeug</th><th>Kennzeichen</th><th>Notiz</th>' + (currentRole === 'office' ? '<th>Aktion</th>' : '') + '</tr></thead><tbody>' + fleetVehicles.map(v => `<tr><td data-label="Fahrzeug"><strong>${escapeHtml(v.name)}</strong></td><td data-label="Kennzeichen">${escapeHtml(v.license_plate || '–')}</td><td data-label="Notiz">${escapeHtml(v.notes || '–')}</td>${currentRole === 'office' ? `<td data-label="Aktion"><button type="button" class="secondary smallbtn" data-edit-fleet-vehicle="${v.id}">Bearbeiten</button></td>` : ''}</tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Noch keine Fahrzeuge angelegt.</p>';
+    $('fleetVehiclesList').innerHTML = fleetVehicles.length ? '<div class="table-wrap"><table><thead><tr><th>Fahrzeug</th><th>Kennzeichen</th><th>Notiz</th>' + (currentRole === 'office' ? '<th>Aktion</th>' : '') + '</tr></thead><tbody>' + fleetVehicles.map(v => `<tr><td data-label="Fahrzeug"><strong>${escapeHtml(v.name)}</strong></td><td data-label="Kennzeichen">${escapeHtml(v.license_plate || '–')}</td><td data-label="Notiz">${escapeHtml(v.notes || '–')}</td>${currentRole === 'office' ? `<td data-label="Aktion"><div class="row"><button type="button" class="secondary smallbtn" data-edit-fleet-vehicle="${v.id}">Bearbeiten</button>${editorMode ? `<button type="button" class="danger smallbtn" data-delete-fleet-vehicle="${v.id}">Löschen</button>` : ''}</div></td>` : ''}</tr>`).join('') + '</tbody></table></div>' : '<p class="muted">Noch keine Fahrzeuge angelegt.</p>';
   }
   function renderFleetSelects() {
     const vs = $('fleetSelectVehicle'), ps = $('fleetSelectProduct');
@@ -1698,6 +1699,24 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await loadFleetInventory();
     notify('Fahrzeugdaten wurden aktualisiert.');
   }
+  async function deleteFleetVehicle(vehicleId) {
+    if (currentRole !== 'office' || !editorMode) return notify('Fahrzeuge können nur im Büro-Editor-Modus gelöscht werden.', true);
+    const vehicle = fleetVehicles.find(v => v.id === vehicleId);
+    if (!vehicle) return;
+    const confirmed = confirm(`Fahrzeug „${vehicle.name}“ wirklich löschen? Dabei werden auch sämtliche zugehörigen Inventur-Zählungen dieses Fahrzeugs gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.`);
+    if (!confirmed) return;
+
+    // Delete dependent inventory rows first so the vehicle can be removed even
+    // when the database foreign key does not cascade automatically.
+    const { error: inventoryError } = await client.from('vehicle_inventory').delete().eq('vehicle_id', vehicleId);
+    if (inventoryError) return notify('Zugehörige Inventurdaten konnten nicht gelöscht werden: ' + inventoryError.message, true);
+
+    const { error } = await client.from('fleet_vehicles').delete().eq('id', vehicleId);
+    if (error) return notify('Fahrzeug konnte nicht gelöscht werden: ' + error.message, true);
+    await loadFleetInventory();
+    notify('Fahrzeug und zugehörige Inventurdaten wurden gelöscht.');
+  }
+
   async function saveFleetVehicle() {
     if (currentRole !== 'office') return notify('Keine Berechtigung.', true);
     const name = $('fleetVehicleName').value.trim();
@@ -1857,7 +1876,12 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('fleetCreateTab').onclick = () => { show('fleetCreatePanel'); hide('fleetCountPanel'); $('fleetCreateTab').classList.remove('secondary'); $('fleetCountTab').classList.add('secondary'); };
   $('fleetCountTab').onclick = () => { hide('fleetCreatePanel'); show('fleetCountPanel'); $('fleetCountTab').classList.remove('secondary'); $('fleetCreateTab').classList.add('secondary'); renderFleetSelects(); renderFleetAssignments(); };
   $('saveFleetVehicleBtn').onclick = saveFleetVehicle;
-  $('fleetVehiclesList').addEventListener('click', event => { const button = event.target.closest('[data-edit-fleet-vehicle]'); if (button) editFleetVehicle(button.dataset.editFleetVehicle); });
+  $('fleetVehiclesList').addEventListener('click', event => {
+    const editButton = event.target.closest('[data-edit-fleet-vehicle]');
+    if (editButton) return editFleetVehicle(editButton.dataset.editFleetVehicle);
+    const deleteButton = event.target.closest('[data-delete-fleet-vehicle]');
+    if (deleteButton) return deleteFleetVehicle(deleteButton.dataset.deleteFleetVehicle);
+  });
   $('fleetProductSearch').addEventListener('input', renderFleetSelects);
   $('saveFleetCountBtn').onclick = saveFleetAssignment;
   $('fleetSelectVehicle').onchange = renderFleetAssignments;
