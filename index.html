@@ -781,12 +781,19 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
     setEditorMode(true);
   }
 
+  function localDateTimeValue(value) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   function editMovement(m) {
     openModal('Lagerbuchung bearbeiten', `
-      <div class="field"><label>Datum und Uhrzeit</label><input id="editMoveDate" type="datetime-local" value="${new Date(m.created_at).toISOString().slice(0,16)}"></div>
+      <div class="field"><label>Datum und Uhrzeit</label><input id="editMoveDate" type="datetime-local" value="${localDateTimeValue(m.created_at)}"></div>
       <div class="field"><label>Mengenänderung (+ Zugang / - Entnahme)</label><input id="editMoveDelta" type="number" step="any" value="${Number(m.delta)}"></div>
       <div class="field"><label>Grund / Notiz</label><input id="editMoveReason" value="${escapeHtml(m.reason || '')}"></div>
-      <button id="saveMoveEdit" style="width:100%">Änderung speichern</button>
+      <button type="button" id="saveMoveEdit" style="width:100%">Änderung speichern</button>
     `);
     $('saveMoveEdit').onclick = async () => {
       const delta = Number($('editMoveDelta').value), date = $('editMoveDate').value;
@@ -798,8 +805,9 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
       if (nextQty < 0) { alert('Die Änderung würde einen negativen Lagerbestand erzeugen.'); return; }
       const { error: stockError } = await client.from('products').update({quantity:nextQty}).eq('id',product.id);
       if (stockError) { notify('Bestand konnte nicht angepasst werden: '+stockError.message,true); return; }
-      const { error } = await client.from('stock_movements').update({delta,reason:$('editMoveReason').value.trim() || null,created_at:new Date(date).toISOString()}).eq('id',m.id);
+      const { data, error } = await client.from('stock_movements').update({delta,reason:$('editMoveReason').value.trim() || null,created_at:new Date(date).toISOString()}).eq('id',m.id).select('id');
       if (error) { await refreshAll(); notify('Buchung konnte nicht geändert werden: '+error.message,true); return; }
+      if (!data || !data.length) { notify('Keine Änderung gespeichert: Supabase erlaubt diesem Benutzer kein UPDATE auf stock_movements (RLS-Berechtigung prüfen).', true); return; }
       closeModal(); await refreshAll(); notify('Lagerbuchung geändert.');
     };
   }
@@ -818,7 +826,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
   }
 
   function editToolIssue(x) {
-    const localDate = x.issued_at ? new Date(x.issued_at).toISOString().slice(0,16) : '';
+    const localDate = x.issued_at ? localDateTimeValue(x.issued_at) : '';
     openModal('Werkzeugausgabe bearbeiten', `
       <div class="field"><label>Ausgegeben am</label><input id="editIssueDate" type="datetime-local" value="${localDate}"></div>
       <div class="field"><label>Mitarbeiter</label><input id="editIssueEmployee" value="${escapeHtml(x.employee_name || '')}"></div>
@@ -826,7 +834,7 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
       <div class="field"><label>Ausgegebene Menge</label><input id="editIssueQty" type="number" min="0" step="any" value="${Number(x.quantity || 0)}"></div>
       <div class="field"><label>Bereits zurückgegeben</label><input id="editIssueReturned" type="number" min="0" step="any" value="${Number(x.returned_quantity || 0)}"></div>
       <div class="field"><label>Notiz</label><input id="editIssueNotes" value="${escapeHtml(x.notes || '')}"></div>
-      <button id="saveIssueEdit" style="width:100%">Änderung speichern</button>
+      <button type="button" id="saveIssueEdit" style="width:100%">Änderung speichern</button>
     `);
     $('saveIssueEdit').onclick = async () => {
       const quantity=Number($('editIssueQty').value), returned=Number($('editIssueReturned').value), date=$('editIssueDate').value;
@@ -841,11 +849,12 @@ footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
         const {error:te}=await client.from('tools').update({quantity:next}).eq('id',tool.id);
         if(te){notify('Werkzeugbestand konnte nicht angepasst werden: '+te.message,true);return;}
       }
-      const {error}=await client.from('tool_issues').update({
+      const {data,error}=await client.from('tool_issues').update({
         issued_at:new Date(date).toISOString(),employee_name:$('editIssueEmployee').value.trim(),
         site_name:$('editIssueSite').value.trim(),quantity,returned_quantity:returned,notes:$('editIssueNotes').value.trim()||null
-      }).eq('id',x.id);
+      }).eq('id',x.id).select('id');
       if(error){await refreshAll();notify('Ausgabe konnte nicht geändert werden: '+error.message,true);return;}
+      if(!data || !data.length){notify('Keine Änderung gespeichert: Supabase erlaubt diesem Benutzer kein UPDATE auf tool_issues (RLS-Berechtigung prüfen).',true);return;}
       closeModal();await refreshAll();notify('Werkzeugausgabe geändert.');
     };
   }
