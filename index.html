@@ -536,7 +536,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const name = $('monteurName').value;
     const pin = $('monteurPin').value.trim();
     const msg = $('monteurLoginMsg'); msg.classList.remove('hidden','error'); msg.textContent = 'Anmeldung läuft…';
-    if (!name || !/^\\d{6}$/.test(pin)) { msg.textContent = 'Bitte Namen auswählen und eine 6-stellige PIN eingeben.'; msg.classList.add('error'); return; }
+    if (!name || !/^\d{6}$/.test(pin)) { msg.textContent = 'Bitte Namen auswählen und eine 6-stellige PIN eingeben.'; msg.classList.add('error'); return; }
     try {
       const response = await fetch(MONTEUR_LOGIN_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,pin}) });
       const result = await response.json();
