@@ -1340,6 +1340,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     }
 
     openModal('Material buchen', `
+      <div style="display:flex;justify-content:flex-end;margin:0 0 10px">
+        <button type="button" id="editBookingProductBtn" class="secondary smallbtn" ${p ? '' : 'style="display:none"'}>✎ Produkt bearbeiten</button>
+      </div>
       <div class="field">
         <label>Artikel / Barcode</label>
         <input id="bCode" value="${escapeHtml(p ? (p.barcode || p.sku || p.name) : initialCode)}" placeholder="Barcode oder Artikelnummer">
@@ -1382,7 +1385,14 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       $('bookingProductLocation').innerHTML = selected
         ? `<strong>Lagerort:</strong> ${escapeHtml(selected.location || 'Kein Lagerort hinterlegt')}`
         : 'Lagerort wird nach Auswahl oder Scan des Artikels angezeigt.';
+      $('editBookingProductBtn').style.display = selected && currentRole === 'office' ? '' : 'none';
     };
+
+    $('editBookingProductBtn').addEventListener('click', () => {
+      const selected = products.find(x => x.id === $('bProduct').value);
+      if (!selected) return;
+      articleForm(selected);
+    });
 
     $('bProduct').addEventListener('change', updateBookingProductLocation);
     $('bCode').addEventListener('change', () => {
