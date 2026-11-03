@@ -357,8 +357,17 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="field"><label for="toolProduct">Werkzeug / Artikel</label><select id="toolProduct"></select></div>
         <div class="field"><label for="toolQuantity">Menge</label><input id="toolQuantity" type="number" min="0.01" step="0.01" value="1"></div>
         <div class="field wide"><label for="toolNotes">Notiz (optional)</label><input id="toolNotes" placeholder="z. B. Seriennummer oder Zustand"></div>
-        <div class="wide"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button></div>
+        <div class="wide"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button><div id="toolIssueMsg" class="msg hidden" style="margin-top:8px"></div></div>
       </div>
+      <section class="panel" id="toolIssueCartPanel" style="border:2px solid var(--primary,#2563eb);margin:14px 0">
+        <h3 style="margin-top:0">🛒 Werkzeug-Ausgabe-Warenkorb</h3>
+        <p class="muted">Prüfe die ausgewählten Werkzeuge und buche sie anschließend gemeinsam auf den oben eingetragenen Mitarbeiter und die Baustelle.</p>
+        <div class="table-wrap"><table><thead><tr><th>Werkzeug</th><th>Menge</th><th>Aktion</th></tr></thead><tbody id="toolCartBody"></tbody></table></div>
+        <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" id="checkoutToolCartBtn">Ausgewählte Werkzeuge ausgeben</button>
+          <button type="button" id="clearToolCartBtn" class="secondary">Warenkorb leeren</button>
+        </div>
+      </section>
       <h3 style="margin-top:22px">Werkzeug zurückbuchen / Ausgabehistorie</h3>
       <section class="panel" id="toolReturnCartPanel" style="border:2px solid var(--primary,#2563eb);margin:14px 0">
         <h3 style="margin-top:0">🛒 Werkzeug-Rückgabe-Warenkorb</h3>
@@ -2239,6 +2248,21 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   renderStockCartOptions();
   renderStockCart();
   $('createToolBtn').onclick = createTool;
+  $('addToolCartBtn').onclick = addToolToCart;
+  $('checkoutToolCartBtn').onclick = checkoutToolCart;
+  $('clearToolCartBtn').onclick = () => { toolCart = []; renderToolCart(); showToolMessage('Werkzeug-Ausgabe-Warenkorb geleert.'); };
+  $('toolCartBody').addEventListener('input', e => {
+    const input = e.target.closest('input[data-cart-qty]');
+    if (!input) return;
+    const index = Number(input.dataset.cartQty), quantity = Number(input.value);
+    if (!(quantity > 0)) { showToolMessage('Bitte eine Menge größer als 0 eingeben.', true); return; }
+    if (toolCart[index]) toolCart[index].quantity = quantity;
+  });
+  $('toolCartBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-cart-remove]');
+    if (btn) { toolCart.splice(Number(btn.dataset.cartRemove), 1); renderToolCart(); }
+  });
+  renderToolCart();
   $('scanNewToolQrBtn').onclick = () => scanToolQr(code => {
     $('newToolCode').value = code;
     const msg = $('toolCreateMsg'); msg.classList.remove('hidden','error'); msg.textContent = `QR-Nummer „${code}“ übernommen. Sie wird beim Anlegen des Werkzeugs gespeichert.`;
