@@ -324,6 +324,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <button type="button" class="secondary" id="toolCreateTab">Werkzeug anlegen</button>
         <button type="button" class="secondary" id="toolWarehouseTab">Werkzeuglager</button>
         <button type="button" class="secondary" id="toolManageTab">Werkzeuge verwalten</button>
+        <button type="button" class="secondary" id="toolBookingsTab">Letzte Buchungen</button>
       </div>
       <div id="toolCreatePanel">
       <h3>Werkzeug anlegen</h3>
@@ -344,7 +345,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="row"><input id="manageToolQrCode" placeholder="QR-Nummer eingeben oder scannen"><button type="button" id="scanManageToolQrBtn" class="secondary">▦ QR-Code scannen</button><button type="button" id="findManageToolQrBtn" class="secondary">Suchen</button></div>
         <div id="manageToolQrMsg" class="muted"></div>
       </div>
-      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Werkzeug</th><th>Nummer</th><th>Bestand verfügbar</th><th>Status</th><th>Aktion</th></tr></thead><tbody id="toolsBody"></tbody></table></div>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Werkzeug</th><th>Nummer</th><th>Bestand verfügbar</th><th>Aktion</th></tr></thead><tbody id="toolsBody"></tbody></table></div>
       </div>
       <div id="toolManagePanel" class="hidden">
       <h3>Werkzeuge verwalten – Ausgabe und Rückgabe</h3>
@@ -378,6 +379,11 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       </section>
       <div class="row" style="margin-bottom:10px"><button id="toolAllBtn" class="secondary smallbtn">Alle anzeigen</button><button id="toolActiveBtn" class="secondary smallbtn">Nur offene Ausgaben</button></div>
       <div class="table-wrap"><table><thead><tr><th>Ausgegeben</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status / Rückgabe</th></tr></thead><tbody id="toolIssuesBody"></tbody></table></div>
+      </div>
+      <div id="toolBookingsPanel" class="hidden">
+        <h3>Letzte Werkzeugbuchungen</h3>
+        <p class="muted">Hier siehst du die zuletzt erfassten Werkzeugausgaben mit Mitarbeiter, Baustelle und aktuellem Rückgabestatus.</p>
+        <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status</th></tr></thead><tbody id="toolBookingsBody"></tbody></table></div>
       </div>
       </section>
     </section>
@@ -613,6 +619,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     renderStockCartOptions();
     renderStockCart();
     renderToolIssues();
+    renderToolBookings();
     renderToolProductOptions();
     renderMovements();
 
@@ -646,7 +653,13 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   function renderTools() {
     const body = $('toolsBody');
     if (!body) return;
-    body.innerHTML = tools.map(t => `<tr data-tool-row="${t.id}"><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
+    body.innerHTML = tools.map(t => {
+      const hasOpenIssue = toolIssues.some(issue => issue.tool_id === t.id && Number(issue.quantity || 0) > Number(issue.returned_quantity || 0));
+      const status = hasOpenIssue
+        ? '<span style="display:inline-block;background:#fee2e2;color:#b91c1c;padding:4px 9px;border-radius:999px;font-weight:700;">Rot · Ausgegeben</span>'
+        : '<span style="display:inline-block;background:#dcfce7;color:#15803d;padding:4px 9px;border-radius:999px;font-weight:700;">Grün · Verfügbar</span>';
+      return `<tr data-tool-row="${t.id}"><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${status}<button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></div></td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
   }
 
   async function deleteTool(toolId) {
@@ -761,6 +774,28 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         </td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" class="muted">Keine passenden Werkzeugausgaben.</td></tr>';
+  }
+
+  function renderToolBookings() {
+    const body = $('toolBookingsBody');
+    if (!body) return;
+    body.innerHTML = toolIssues.map(x => {
+      const issued = Number(x.quantity || 0);
+      const returned = Number(x.returned_quantity || 0);
+      const outstanding = Math.max(0, issued - returned);
+      const date = x.issued_at ? new Date(x.issued_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : '–';
+      const status = outstanding <= 0
+        ? '<span class="pill" style="background:#dcfce7;color:#166534">Vollständig zurück</span>'
+        : `<span class="pill" style="background:#fee2e2;color:#991b1b">Ausgegeben: ${outstanding.toLocaleString('de-DE')} offen</span>`;
+      return `<tr>
+        <td data-label="Datum">${date}</td>
+        <td data-label="Mitarbeiter">${escapeHtml(x.employee_name)}</td>
+        <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
+        <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}</td>
+        <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
+        <td data-label="Status">${status}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="muted">Noch keine Werkzeugbuchungen vorhanden.</td></tr>';
   }
 
   function showToolMessage(message, error = false) {
@@ -2274,16 +2309,19 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('findManageToolQrBtn').onclick = () => findManagedToolByCode($('manageToolQrCode').value);
   $('manageToolQrCode').addEventListener('keydown', e => { if (e.key === 'Enter') findManagedToolByCode($('manageToolQrCode').value); });
   function showToolPanel(panel) {
-    ['toolCreatePanel','toolWarehousePanel','toolManagePanel'].forEach(id => hide(id));
+    ['toolCreatePanel','toolWarehousePanel','toolManagePanel','toolBookingsPanel'].forEach(id => hide(id));
     show(panel);
     $('toolCreateTab').classList.toggle('active', panel === 'toolCreatePanel');
     $('toolWarehouseTab').classList.toggle('active', panel === 'toolWarehousePanel');
     $('toolManageTab').classList.toggle('active', panel === 'toolManagePanel');
+    $('toolBookingsTab').classList.toggle('active', panel === 'toolBookingsPanel');
     if (panel === 'toolWarehousePanel') renderTools();
+    if (panel === 'toolBookingsPanel') renderToolBookings();
   }
   $('toolCreateTab').onclick = () => showToolPanel('toolCreatePanel');
   $('toolWarehouseTab').onclick = () => showToolPanel('toolWarehousePanel');
   $('toolManageTab').onclick = () => showToolPanel('toolManagePanel');
+  $('toolBookingsTab').onclick = () => showToolPanel('toolBookingsPanel');
   $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
   showToolPanel('toolCreatePanel');
   $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
