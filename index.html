@@ -331,13 +331,18 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="field"><label for="newToolName">Werkzeugname</label><input id="newToolName" placeholder="z. B. Bohrhammer"></div>
         <div class="field"><label for="newToolUnit">Einheit</label><input id="newToolUnit" value="Stück" placeholder="Stück"></div>
         <div class="field"><label for="newToolQty">Verfügbarer Bestand</label><input id="newToolQty" type="number" min="0" step="1" value="1"></div>
-        <div class="field"><label for="newToolCode">Inventar-/Seriennummer (optional)</label><input id="newToolCode" placeholder="z. B. WZ-001"></div>
+        <div class="field"><label for="newToolCode">Inventar-/Seriennummer / QR-Nummer</label><input id="newToolCode" placeholder="z. B. WZ-001"><button type="button" id="scanNewToolQrBtn" class="secondary" style="margin-top:6px;width:100%">▦ QR-Code scannen</button></div>
         <div class="wide"><button id="createToolBtn">Werkzeug anlegen</button><div id="toolCreateMsg" class="msg hidden"></div></div>
       </div>
       </div>
       <div id="toolManagePanel" class="hidden">
       <h3>Werkzeug verwalten</h3>
       <p class="muted">Hier kannst du Werkzeuge anlegen, verwalten und endgültig löschen. Die Ausgabehistorie bleibt erhalten.</p>
+      <div class="field" style="max-width:520px;margin-top:12px">
+        <label for="manageToolQrCode">Werkzeug per QR-Code finden</label>
+        <div class="row"><input id="manageToolQrCode" placeholder="QR-Nummer eingeben oder scannen"><button type="button" id="scanManageToolQrBtn" class="secondary">▦ QR-Code scannen</button><button type="button" id="findManageToolQrBtn" class="secondary">Suchen</button></div>
+        <div id="manageToolQrMsg" class="muted"></div>
+      </div>
       <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Werkzeug</th><th>Nummer</th><th>Bestand verfügbar</th><th>Status</th><th>Aktion</th></tr></thead><tbody id="toolsBody"></tbody></table></div>
       <h3 style="margin-top:22px">Werkzeug vergeben</h3>
       <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bei Ausgabe sinkt der Lagerbestand automatisch; bei Rückgabe steigt er wieder.</p>
@@ -627,7 +632,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   function renderTools() {
     const body = $('toolsBody');
     if (!body) return;
-    body.innerHTML = tools.map(t => `<tr><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
+    body.innerHTML = tools.map(t => `<tr data-tool-row="${t.id}"><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
   }
 
   async function deleteTool(toolId) {
@@ -645,6 +650,66 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (error) { notify('Werkzeug konnte nicht gelöscht werden. Details: ' + error.message, true); return; }
     await refreshAll();
     notify('Werkzeug wurde gelöscht. Die Ausgabehistorie bleibt erhalten.');
+  }
+
+  async function scanToolQr(onCode) {
+    if (!window.Html5Qrcode) {
+      notify('QR-Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen.', true);
+      return;
+    }
+    openModal('Werkzeug-QR-Code scannen', `
+      <p class="muted">Halte den QR-Code mit der Werkzeugnummer vor die Kamera. Alternativ kannst du die Nummer manuell eingeben.</p>
+      <div id="toolQrReader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div>
+      <div class="field" style="margin-top:12px"><label for="toolQrManualCode">QR-Nummer</label><input id="toolQrManualCode" placeholder="z. B. WZ-001"></div>
+      <button type="button" id="toolQrUseManualBtn" style="width:100%">Nummer übernehmen</button>
+      <div id="toolQrScanMsg" class="muted" style="margin-top:8px"></div>
+    `);
+    let handled = false;
+    const accept = async raw => {
+      const code = String(raw || '').trim();
+      if (!code || handled) return;
+      handled = true;
+      const scanner = html5Scanner;
+      html5Scanner = null;
+      if (scanner) {
+        try { await scanner.stop(); } catch (e) {}
+        try { scanner.clear(); } catch (e) {}
+      }
+      closeModal();
+      onCode(code);
+    };
+    $('toolQrUseManualBtn').onclick = () => accept($('toolQrManualCode').value);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      $('toolQrScanMsg').textContent = 'Kamerazugriff nicht verfügbar. Bitte die QR-Nummer manuell eingeben.';
+      return;
+    }
+    try {
+      if (html5Scanner) {
+        try { await html5Scanner.stop(); } catch (e) {}
+        try { html5Scanner.clear(); } catch (e) {}
+        html5Scanner = null;
+      }
+      html5Scanner = new Html5Qrcode('toolQrReader');
+      await html5Scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 240, height: 240 } }, decodedText => accept(decodedText), () => {});
+      $('toolQrScanMsg').textContent = 'Kamera aktiv – QR-Code vor die Kamera halten.';
+    } catch (e) {
+      $('toolQrScanMsg').textContent = 'Kamera konnte nicht gestartet werden. Bitte HTTPS und Kamerazugriff prüfen oder die Nummer manuell eingeben.';
+    }
+  }
+
+  function findManagedToolByCode(rawCode) {
+    const code = String(rawCode || '').trim().toLocaleLowerCase('de-DE');
+    const msg = $('manageToolQrMsg');
+    if (!code) { msg.textContent = 'Bitte eine QR-Nummer eingeben oder scannen.'; return; }
+    const tool = tools.find(t => String(t.code || '').trim().toLocaleLowerCase('de-DE') === code);
+    if (!tool) { msg.textContent = `Kein Werkzeug mit der Nummer „${rawCode}“ gefunden.`; return; }
+    msg.textContent = `Gefunden: ${tool.name} (${tool.code}).`;
+    document.querySelectorAll('[data-tool-row]').forEach(row => row.style.outline = '');
+    const row = document.querySelector(`[data-tool-row="${CSS.escape(String(tool.id))}"]`);
+    if (row) {
+      row.style.outline = '3px solid #0078D4';
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
 
   async function createTool() {
@@ -2169,6 +2234,16 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   renderStockCartOptions();
   renderStockCart();
   $('createToolBtn').onclick = createTool;
+  $('scanNewToolQrBtn').onclick = () => scanToolQr(code => {
+    $('newToolCode').value = code;
+    const msg = $('toolCreateMsg'); msg.classList.remove('hidden','error'); msg.textContent = `QR-Nummer „${code}“ übernommen. Sie wird beim Anlegen des Werkzeugs gespeichert.`;
+  });
+  $('scanManageToolQrBtn').onclick = () => scanToolQr(code => {
+    $('manageToolQrCode').value = code;
+    findManagedToolByCode(code);
+  });
+  $('findManageToolQrBtn').onclick = () => findManagedToolByCode($('manageToolQrCode').value);
+  $('manageToolQrCode').addEventListener('keydown', e => { if (e.key === 'Enter') findManagedToolByCode($('manageToolQrCode').value); });
   $('toolCreateTab').onclick = () => { show('toolCreatePanel'); hide('toolManagePanel'); };
   $('toolManageTab').onclick = () => { hide('toolCreatePanel'); show('toolManagePanel'); };
   $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
