@@ -237,7 +237,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
             <h3>Fahrzeuge zählen</h3>
             <div class="tool-form">
               <div class="field"><label for="fleetSelectVehicle">Fahrzeug auswählen</label><select id="fleetSelectVehicle"><option value="">Fahrzeug auswählen…</option></select></div>
-              <div class="field"><label for="fleetProductSearch">Artikel suchen</label><input id="fleetProductSearch" type="search" placeholder="Name, Artikelnummer oder Barcode eingeben…" autocomplete="off"><label for="fleetSelectProduct" style="margin-top:8px">Treffer auswählen</label><select id="fleetSelectProduct"><option value="">Artikel auswählen…</option></select><button type="button" id="scanFleetArticleBtn" class="secondary" style="margin-top:8px;width:100%">▦ Artikel für dieses Fahrzeug scannen</button></div>
+              <div class="field"><label for="fleetProductSearch">Artikel suchen</label><input id="fleetProductSearch" type="search" placeholder="Name, Artikelnummer oder Barcode eingeben…" autocomplete="off"><div id="fleetProductResults" class="search-results" style="margin-top:8px;max-height:260px;overflow-y:auto"></div><select id="fleetSelectProduct" class="hidden"><option value="">Artikel auswählen…</option></select><div id="fleetSelectedProduct" class="muted" style="margin-top:6px">Noch kein Artikel ausgewählt.</div><button type="button" id="scanFleetArticleBtn" class="secondary" style="margin-top:8px;width:100%">▦ Artikel für dieses Fahrzeug scannen</button></div>
               <div class="field"><label for="fleetCountQuantity">Gezählte Menge (manuelle Zuordnung)</label><input id="fleetCountQuantity" type="number" min="0" step="0.01" value="1"></div>
               <div class="field"><label for="fleetCountNotes">Notiz (optional)</label><input id="fleetCountNotes" placeholder="z. B. Lagerfach / Zustand"></div>
               <div class="wide"><button type="button" id="saveFleetCountBtn">＋ Artikel dem Fahrzeug zuordnen</button></div>
@@ -1052,6 +1052,15 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     $('modalTitle').textContent = title;
     $('modalContent').innerHTML = html;
     show('modal');
+    // Reset every relevant scroll container so the form opens at its first field.
+    requestAnimationFrame(() => {
+      $('modalContent').scrollTop = 0;
+      $('modal').scrollTop = 0;
+      const card = document.querySelector('#modal .modal-card');
+      if (card) card.scrollTop = 0;
+      const firstField = $('modalContent').querySelector('input, select, textarea, button');
+      if (firstField) firstField.scrollIntoView({ block: 'start', behavior: 'instant' });
+    });
   }
 
   function closeModal() {
@@ -1677,11 +1686,25 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const vs = $('fleetSelectVehicle'), ps = $('fleetSelectProduct');
     const oldV = vs.value, oldP = ps.value;
     vs.innerHTML = '<option value="">Fahrzeug auswählen…</option>' + fleetVehicles.map(v => `<option value="${v.id}">${escapeHtml(v.name)}${v.license_plate ? ' – ' + escapeHtml(v.license_plate) : ''}</option>`).join('');
+    if (fleetVehicles.some(v => v.id === oldV)) vs.value = oldV;
+
     const search = String($('fleetProductSearch')?.value || '').trim().toLocaleLowerCase('de-DE');
     const matchingProducts = products.filter(p => !search || [p.name, p.sku, p.barcode].some(value => String(value || '').toLocaleLowerCase('de-DE').includes(search)));
-    ps.innerHTML = '<option value="">Artikel auswählen…</option>' + matchingProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.sku ? ' – ' + escapeHtml(p.sku) : ''} (Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')})</option>`).join('');
-    if (fleetVehicles.some(v => v.id === oldV)) vs.value = oldV;
+    ps.innerHTML = '<option value="">Artikel auswählen…</option>' + matchingProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.sku ? ' – ' + escapeHtml(p.sku) : ''}</option>`).join('');
     if (matchingProducts.some(p => p.id === oldP)) ps.value = oldP;
+
+    const results = $('fleetProductResults');
+    if (results) {
+      if (!search) {
+        results.innerHTML = '<p class="muted">Tippe einen Artikelnamen, eine Artikelnummer oder einen Barcode ein.</p>';
+      } else if (!matchingProducts.length) {
+        results.innerHTML = '<p class="muted">Keine passenden Artikel gefunden.</p>';
+      } else {
+        results.innerHTML = matchingProducts.slice(0, 80).map(p => `<button type="button" class="secondary" data-fleet-pick-product="${p.id}" style="display:flex;width:100%;justify-content:space-between;text-align:left;margin:4px 0;gap:12px"><span><strong>${escapeHtml(p.name)}</strong><br><small>${escapeHtml(p.sku || p.barcode || 'Keine Artikelnummer')}</small></span><span class="muted">${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')}</span></button>`).join('') + (matchingProducts.length > 80 ? `<p class="muted">Es werden die ersten 80 von ${matchingProducts.length} Treffern angezeigt. Suche genauer.</p>` : '');
+      }
+    }
+    const selected = products.find(p => p.id === ps.value);
+    if ($('fleetSelectedProduct')) $('fleetSelectedProduct').innerHTML = selected ? `<strong>Ausgewählt:</strong> ${escapeHtml(selected.name)}` : 'Noch kein Artikel ausgewählt.';
   }
   function renderFleetAssignments() {
     const vehicleId = $('fleetSelectVehicle').value;
@@ -1893,6 +1916,17 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (deleteButton) return deleteFleetVehicle(deleteButton.dataset.deleteFleetVehicle);
   });
   $('fleetProductSearch').addEventListener('input', renderFleetSelects);
+  $('fleetProductResults').addEventListener('click', event => {
+    const button = event.target.closest('[data-fleet-pick-product]');
+    if (!button) return;
+    const productId = button.dataset.fleetPickProduct;
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    $('fleetSelectProduct').innerHTML = `<option value="${product.id}">${escapeHtml(product.name)}</option>`;
+    $('fleetSelectProduct').value = product.id;
+    $('fleetSelectedProduct').innerHTML = `<strong>Ausgewählt:</strong> ${escapeHtml(product.name)}`;
+    $('fleetProductResults').innerHTML = `<p class="muted">Ausgewählt: ${escapeHtml(product.name)}</p>`;
+  });
   $('saveFleetCountBtn').onclick = saveFleetAssignment;
   $('fleetSelectVehicle').onchange = renderFleetAssignments;
   $('scanFleetArticleBtn').onclick = scanFleetArticle;
