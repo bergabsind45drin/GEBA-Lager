@@ -319,10 +319,11 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <div class="row view-heading"><button id="toolsHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>Werkzeuge</h2></div>
       <section class="panel" id="toolIssueSection">
       <h2>🧰 Werkzeugbereich</h2>
-      <p class="muted">Wähle aus, ob du Werkzeuge anlegen oder verwalten möchtest.</p>
+      <p class="muted">Der Werkzeugbereich ist in drei Bereiche aufgeteilt.</p>
       <div class="row" style="margin:12px 0 18px;gap:8px;flex-wrap:wrap">
         <button type="button" class="secondary" id="toolCreateTab">Werkzeug anlegen</button>
-        <button type="button" class="secondary" id="toolManageTab">Werkzeug verwalten</button>
+        <button type="button" class="secondary" id="toolWarehouseTab">Werkzeuglager</button>
+        <button type="button" class="secondary" id="toolManageTab">Werkzeuge verwalten</button>
       </div>
       <div id="toolCreatePanel">
       <h3>Werkzeug anlegen</h3>
@@ -335,15 +336,19 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="wide"><button id="createToolBtn">Werkzeug anlegen</button><div id="toolCreateMsg" class="msg hidden"></div></div>
       </div>
       </div>
-      <div id="toolManagePanel" class="hidden">
-      <h3>Werkzeug verwalten</h3>
-      <p class="muted">Hier kannst du Werkzeuge anlegen, verwalten und endgültig löschen. Die Ausgabehistorie bleibt erhalten.</p>
+      <div id="toolWarehousePanel" class="hidden">
+      <h3>Werkzeuglager</h3>
+      <p class="muted">Hier findest du alle angelegten Werkzeuge mit Inventarnummer und verfügbarem Bestand.</p>
       <div class="field" style="max-width:520px;margin-top:12px">
         <label for="manageToolQrCode">Werkzeug per QR-Code finden</label>
         <div class="row"><input id="manageToolQrCode" placeholder="QR-Nummer eingeben oder scannen"><button type="button" id="scanManageToolQrBtn" class="secondary">▦ QR-Code scannen</button><button type="button" id="findManageToolQrBtn" class="secondary">Suchen</button></div>
         <div id="manageToolQrMsg" class="muted"></div>
       </div>
       <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Werkzeug</th><th>Nummer</th><th>Bestand verfügbar</th><th>Status</th><th>Aktion</th></tr></thead><tbody id="toolsBody"></tbody></table></div>
+      </div>
+      <div id="toolManagePanel" class="hidden">
+      <h3>Werkzeuge verwalten – Ausgabe und Rückgabe</h3>
+      <p class="muted">Hier buchst du Werkzeuge wie gewohnt auf Mitarbeiter und Baustellen ein und aus. Die Ausgabehistorie bleibt erhalten.</p>
       <h3 style="margin-top:22px">Werkzeug vergeben</h3>
       <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bei Ausgabe sinkt der Lagerbestand automatisch; bei Rückgabe steigt er wieder.</p>
       <div class="tool-form">
@@ -2244,9 +2249,19 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   });
   $('findManageToolQrBtn').onclick = () => findManagedToolByCode($('manageToolQrCode').value);
   $('manageToolQrCode').addEventListener('keydown', e => { if (e.key === 'Enter') findManagedToolByCode($('manageToolQrCode').value); });
-  $('toolCreateTab').onclick = () => { show('toolCreatePanel'); hide('toolManagePanel'); };
-  $('toolManageTab').onclick = () => { hide('toolCreatePanel'); show('toolManagePanel'); };
+  function showToolPanel(panel) {
+    ['toolCreatePanel','toolWarehousePanel','toolManagePanel'].forEach(id => hide(id));
+    show(panel);
+    $('toolCreateTab').classList.toggle('active', panel === 'toolCreatePanel');
+    $('toolWarehouseTab').classList.toggle('active', panel === 'toolWarehousePanel');
+    $('toolManageTab').classList.toggle('active', panel === 'toolManagePanel');
+    if (panel === 'toolWarehousePanel') renderTools();
+  }
+  $('toolCreateTab').onclick = () => showToolPanel('toolCreatePanel');
+  $('toolWarehouseTab').onclick = () => showToolPanel('toolWarehousePanel');
+  $('toolManageTab').onclick = () => showToolPanel('toolManagePanel');
   $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
+  showToolPanel('toolCreatePanel');
   $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
   $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
   $('checkoutToolReturnCartBtn').onclick = checkoutToolReturnCart;
