@@ -350,6 +350,13 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="wide"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button></div>
       </div>
       <h3 style="margin-top:22px">Werkzeug zurückbuchen / Ausgabehistorie</h3>
+      <section class="panel" id="toolReturnCartPanel" style="border:2px solid var(--primary,#2563eb);margin:14px 0">
+        <h3 style="margin-top:0">🛒 Werkzeug-Rückgabe-Warenkorb</h3>
+        <p class="muted">Offene Werkzeugausgaben aus der Tabelle hinzufügen und anschließend gemeinsam zurückbuchen. Dieser Warenkorb ist unabhängig vom Lager-Warenkorb.</p>
+        <div class="table-wrap"><table><thead><tr><th>Mitarbeiter / Werkzeug</th><th>Offen</th><th>Rückgabe</th><th>Aktion</th></tr></thead><tbody id="toolReturnCartBody"></tbody></table></div>
+        <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><button type="button" id="checkoutToolReturnCartBtn">↩ Rückgaben gemeinsam buchen</button><button type="button" id="clearToolReturnCartBtn" class="secondary">Warenkorb leeren</button></div>
+        <div id="toolReturnCartMsg" class="msg hidden"></div>
+      </section>
       <div class="row" style="margin-bottom:10px"><button id="toolAllBtn" class="secondary smallbtn">Alle anzeigen</button><button id="toolActiveBtn" class="secondary smallbtn">Nur offene Ausgaben</button></div>
       <div class="table-wrap"><table><thead><tr><th>Ausgegeben</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status / Rückgabe</th></tr></thead><tbody id="toolIssuesBody"></tbody></table></div>
       </div>
@@ -670,7 +677,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
         <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(x.notes || '')}</span></td>
         <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
-        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-return-tool="${x.id}" data-outstanding="${outstanding}">Rückgabe buchen</button>`}
+        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-add-tool-return="${x.id}" data-outstanding="${outstanding}">＋ Zum Rückgabe-Warenkorb</button>`}
           ${editorMode ? `<div class="row" style="margin-top:6px"><button type="button" class="secondary smallbtn" data-edit-issue="${x.id}">Bearbeiten</button><button type="button" class="danger smallbtn" data-delete-issue="${x.id}">Löschen</button></div>` : ''}
         </td>
       </tr>`;
@@ -754,6 +761,66 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await refreshAll();
   }
 
+  function showToolReturnCartMessage(message, error = false) {
+    const el = $('toolReturnCartMsg');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('error', error);
+    el.classList.remove('hidden');
+  }
+
+  function addToolReturnToCart(issueId) {
+    const issue = toolIssues.find(x => String(x.id) === String(issueId));
+    if (!issue) { showToolReturnCartMessage('Die offene Werkzeugausgabe wurde nicht gefunden.', true); return; }
+    const outstanding = Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0));
+    if (outstanding <= 0) { showToolReturnCartMessage('Diese Ausgabe ist bereits vollständig zurückgegeben.', true); return; }
+    const existing = toolReturnCart.find(x => String(x.issueId) === String(issueId));
+    if (existing) existing.quantity = outstanding;
+    else toolReturnCart.push({ issueId: issue.id, quantity: outstanding });
+    renderToolReturnCart();
+    showToolReturnCartMessage('Werkzeugausgabe wurde zum Rückgabe-Warenkorb hinzugefügt.');
+  }
+
+  function renderToolReturnCart() {
+    const body = $('toolReturnCartBody');
+    if (!body) return;
+    body.innerHTML = toolReturnCart.map((item, index) => {
+      const issue = toolIssues.find(x => String(x.id) === String(item.issueId));
+      const outstanding = issue ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)) : 0;
+      return `<tr><td>${escapeHtml(issue?.tools?.name || issue?.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(issue?.employee_name || '')} · ${escapeHtml(issue?.site_name || '')}</span></td><td>${outstanding.toLocaleString('de-DE')}</td><td><input type="number" min="0.01" step="0.01" max="${outstanding}" value="${item.quantity}" data-tool-return-qty="${index}" style="max-width:110px"></td><td><button type="button" class="secondary smallbtn" data-tool-return-remove="${index}">Entfernen</button></td></tr>`;
+    }).join('') || '<tr><td colspan="4" class="muted">Der Werkzeug-Rückgabe-Warenkorb ist leer. Füge unten bei einer offenen Ausgabe ein Werkzeug hinzu.</td></tr>';
+  }
+
+  async function checkoutToolReturnCart() {
+    if (!toolReturnCart.length) { showToolReturnCartMessage('Der Rückgabe-Warenkorb ist leer.', true); return; }
+    const button = $('checkoutToolReturnCartBtn');
+    button.disabled = true;
+    try {
+      for (const item of toolReturnCart) {
+        const issue = toolIssues.find(x => String(x.id) === String(item.issueId));
+        const outstanding = issue ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)) : 0;
+        if (!issue || !(Number(item.quantity) > 0) || Number(item.quantity) > outstanding) {
+          showToolReturnCartMessage('Bitte prüfe die Rückgabemengen. Eine Menge ist ungültig oder bereits zurückgebucht.', true);
+          return;
+        }
+      }
+      for (const item of toolReturnCart) {
+        const { error } = await client.rpc('return_tool', { p_issue_id: item.issueId, p_quantity: Number(item.quantity) });
+        if (error) {
+          showToolReturnCartMessage('Eine Rückgabe ist fehlgeschlagen: ' + error.message + '. Bereits erfolgreich gebuchte Rückgaben bleiben gespeichert.', true);
+          await refreshAll();
+          return;
+        }
+      }
+      toolReturnCart = [];
+      await refreshAll();
+      renderToolReturnCart();
+      showToolReturnCartMessage('Alle Rückgaben aus dem Werkzeug-Warenkorb wurden gebucht.');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function returnTool(issueId, outstanding) {
     const raw = prompt(`Wie viele Einheiten werden zurückgegeben? Noch offen: ${outstanding}`, String(outstanding));
     if (raw === null) return;
@@ -802,7 +869,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   function findStockProductByCode(code) {
     const value = String(code || '').trim().toLowerCase();
-    return products.find(p => [p.barcode, p.sku, p.name].some(v => String(v || '').trim().toLowerCase() === value));
+    const exact = products.find(p => [p.barcode, p.sku, p.name].some(v => String(v || '').trim().toLowerCase() === value));
+    return exact || products.find(p => productMatchesSearch(p, code, ['name', 'sku', 'barcode']));
   }
 
   async function scanStockCartItem() {
@@ -890,14 +958,60 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await Promise.all(Array.from({ length: Math.min(6, images.length) }, worker));
   }
 
+
+  // Einheitliche, tolerante Artikelsuche: ignoriert Trennzeichen und Großschreibung,
+  // akzeptiert Teilbegriffe sowie kleine Tippfehler.
+  function normalizeSearchText(value) {
+    return String(value || '')
+      .toLocaleLowerCase('de-DE')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  function searchTextMatches(haystack, query) {
+    const normalizedHaystack = normalizeSearchText(haystack);
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return true;
+    if (normalizedHaystack.includes(normalizedQuery)) return true;
+
+    const queryParts = String(query || '').toLocaleLowerCase('de-DE')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .split(/[^a-z0-9]+/).filter(Boolean);
+    const haystackParts = String(haystack || '').toLocaleLowerCase('de-DE')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .split(/[^a-z0-9]+/).filter(Boolean);
+    const allText = [normalizedHaystack, ...haystackParts.map(normalizeSearchText)];
+
+    const closeEnough = (a, b) => {
+      if (b.includes(a) || a.includes(b)) return true;
+      if (a.length < 4 || b.length < 4 || Math.abs(a.length - b.length) > 1) return false;
+      let prev = Array.from({length: b.length + 1}, (_, i) => i);
+      for (let i = 1; i <= a.length; i++) {
+        const curr = [i];
+        for (let j = 1; j <= b.length; j++) {
+          curr[j] = Math.min(curr[j-1] + 1, prev[j] + 1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+        }
+        if (Math.min(...curr) > 1) return false;
+        prev = curr;
+      }
+      return prev[b.length] <= 1;
+    };
+
+    return queryParts.every(part => allText.some(candidate => closeEnough(candidate, part)));
+  }
+
+  function productMatchesSearch(product, query, fields = ['name', 'sku', 'barcode', 'location']) {
+    if (!String(query || '').trim()) return true;
+    const searchable = fields.map(field => product?.[field] || '').join(' ');
+    return searchTextMatches(searchable, query);
+  }
+
   function renderProducts() {
-    const q = $('search').value.toLowerCase().trim();
+    const q = $('search').value.trim();
 
     const list = products.filter(p =>
       (!showOnlyLow || Number(p.quantity) <= Number(p.min_quantity || 0)) &&
-      [p.name, p.sku, p.barcode, p.location].some(v =>
-        String(v || '').toLowerCase().includes(q)
-      )
+      productMatchesSearch(p, q)
     );
 
     $('productsBody').innerHTML = list.map(p => `
@@ -1698,8 +1812,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     vs.innerHTML = '<option value="">Fahrzeug auswählen…</option>' + fleetVehicles.map(v => `<option value="${v.id}">${escapeHtml(v.name)}${v.license_plate ? ' – ' + escapeHtml(v.license_plate) : ''}</option>`).join('');
     if (fleetVehicles.some(v => v.id === oldV)) vs.value = oldV;
 
-    const search = String($('fleetProductSearch')?.value || '').trim().toLocaleLowerCase('de-DE');
-    const matchingProducts = products.filter(p => !search || [p.name, p.sku, p.barcode].some(value => String(value || '').toLocaleLowerCase('de-DE').includes(search)));
+    const search = String($('fleetProductSearch')?.value || '').trim();
+    const matchingProducts = products.filter(p => productMatchesSearch(p, search, ['name', 'sku', 'barcode']));
     ps.innerHTML = '<option value="">Artikel auswählen…</option>' + matchingProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.sku ? ' – ' + escapeHtml(p.sku) : ''}</option>`).join('');
     if (matchingProducts.some(p => p.id === oldP)) ps.value = oldP;
 
@@ -2060,10 +2174,23 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
   $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
   $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
+  $('checkoutToolReturnCartBtn').onclick = checkoutToolReturnCart;
+  $('clearToolReturnCartBtn').onclick = () => { toolReturnCart = []; renderToolReturnCart(); showToolReturnCartMessage('Werkzeug-Rückgabe-Warenkorb geleert.'); };
+  $('toolReturnCartBody').addEventListener('input', e => {
+    const input = e.target.closest('[data-tool-return-qty]');
+    if (input && toolReturnCart[Number(input.dataset.toolReturnQty)]) toolReturnCart[Number(input.dataset.toolReturnQty)].quantity = Number(input.value);
+  });
+  $('toolReturnCartBody').addEventListener('click', e => {
+    const btn = e.target.closest('[data-tool-return-remove]');
+    if (btn) { toolReturnCart.splice(Number(btn.dataset.toolReturnRemove), 1); renderToolReturnCart(); }
+  });
+
   // Zentrale Klickbehandlung: funktioniert auch nach erneutem Rendern der Tabellen.
   document.addEventListener('click', e => {
     const btn = e.target && e.target.closest ? e.target.closest('button') : null;
     if (!btn) return;
+    const addReturnIssueId = btn.getAttribute('data-add-tool-return');
+    if (addReturnIssueId) { e.preventDefault(); addToolReturnToCart(addReturnIssueId); return; }
     const editIssueId = btn.getAttribute('data-edit-issue');
     const deleteIssueId = btn.getAttribute('data-delete-issue');
     const editMoveId = btn.getAttribute('data-edit-movement');
