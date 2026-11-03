@@ -1345,6 +1345,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
             </option>
           `).join('')}
         </select>
+        <div id="bookingProductLocation" class="muted" style="margin-top:6px">${p ? `<strong>Lagerort:</strong> ${escapeHtml(p.location || 'Kein Lagerort hinterlegt')}` : 'Lagerort wird nach Auswahl oder Scan des Artikels angezeigt.'}</div>
       </div>
       <div class="row">
         <div class="field" style="flex:1">
@@ -1367,10 +1368,19 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <div id="bookMsg" class="muted" style="margin-top:8px"></div>
     `);
 
+    const updateBookingProductLocation = () => {
+      const selected = products.find(x => x.id === $('bProduct').value);
+      $('bookingProductLocation').innerHTML = selected
+        ? `<strong>Lagerort:</strong> ${escapeHtml(selected.location || 'Kein Lagerort hinterlegt')}`
+        : 'Lagerort wird nach Auswahl oder Scan des Artikels angezeigt.';
+    };
+
+    $('bProduct').addEventListener('change', updateBookingProductLocation);
     $('bCode').addEventListener('change', () => {
       const code = $('bCode').value.trim();
       const match = products.find(x => x.barcode === code || x.sku === code);
       if (match) $('bProduct').value = match.id;
+      updateBookingProductLocation();
     });
 
     $('doBooking').onclick = async () => {
