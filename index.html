@@ -669,8 +669,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     body.innerHTML = tools.map(t => {
       const hasOpenIssue = toolIssues.some(issue => issue.tool_id === t.id && Number(issue.quantity || 0) > Number(issue.returned_quantity || 0));
       const status = hasOpenIssue
-        ? '<span style="display:inline-block;background:#fee2e2;color:#b91c1c;padding:4px 9px;border-radius:999px;font-weight:700;">Rot · Ausgegeben</span>'
-        : '<span style="display:inline-block;background:#dcfce7;color:#15803d;padding:4px 9px;border-radius:999px;font-weight:700;">Grün · Verfügbar</span>';
+        ? '<span style="display:inline-block;background:#fee2e2;color:#b91c1c;padding:4px 9px;border-radius:999px;font-weight:700;">Ausgegeben</span>'
+        : '<span style="display:inline-block;background:#dcfce7;color:#15803d;padding:4px 9px;border-radius:999px;font-weight:700;">Verfügbar</span>';
       return `<tr data-tool-row="${t.id}"><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${status}${editorMode ? `<button type="button" class="danger smallbtn" data-delete-tool="${t.id}">Löschen</button>` : ''}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
   }
