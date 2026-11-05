@@ -1365,14 +1365,26 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (!editorMode) { notify('Löschen ist nur im Editor-Modus möglich.', true); return; }
     if (!confirm('Diese Werkzeugausgabe wirklich löschen? Eine noch offene Menge wird dem Werkzeugbestand wieder gutgeschrieben.')) return;
     const outstanding=Math.max(0,Number(x.quantity||0)-Number(x.returned_quantity||0));
+    let stockTool=null;
     if(outstanding && x.tool_id){
-      const tool=tools.find(t=>t.id===x.tool_id);
-      if(!tool){notify('Werkzeug zur Ausgabe nicht gefunden.',true);return;}
-      const {error:te}=await client.from('tools').update({quantity:Number(tool.quantity||0)+outstanding}).eq('id',tool.id);
+      stockTool=tools.find(t=>t.id===x.tool_id);
+      if(!stockTool){notify('Werkzeug zur Ausgabe nicht gefunden.',true);return;}
+      const {error:te}=await client.from('tools').update({quantity:Number(stockTool.quantity||0)+outstanding}).eq('id',stockTool.id);
       if(te){notify('Werkzeugbestand konnte nicht angepasst werden: '+te.message,true);return;}
     }
-    const {error}=await client.from('tool_issues').delete().eq('id',x.id);
-    if(error){await refreshAll();notify('Ausgabe konnte nicht gelöscht werden: '+error.message,true);return;}
+    // select('id') ist wichtig: Supabase kann DELETE durch RLS ohne Fehler,
+    // aber auch ohne gelöschte Zeile beantworten.
+    const {data,error}=await client.from('tool_issues').delete().eq('id',x.id).select('id');
+    if(error || !data || data.length===0){
+      // Bestand zurücksetzen, falls die Buchung nicht wirklich gelöscht wurde.
+      if(stockTool && outstanding){
+        const {error:rollbackError}=await client.from('tools').update({quantity:Number(stockTool.quantity||0)}).eq('id',stockTool.id);
+        if(rollbackError) notify('Buchung blieb bestehen. Zusätzlich ließ sich die Bestandskorrektur nicht zurücknehmen: '+rollbackError.message,true);
+      }
+      await refreshAll();
+      notify(error ? 'Ausgabe konnte nicht gelöscht werden: '+error.message : 'Buchung wurde NICHT gelöscht. Supabase verhindert das Löschen wahrscheinlich durch eine RLS-Berechtigung (DELETE auf tool_issues).',true);
+      return;
+    }
     await refreshAll();notify('Werkzeugausgabe gelöscht.');
   }
 
