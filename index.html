@@ -848,6 +848,21 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         </td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" class="muted">Keine passenden Werkzeugausgaben.</td></tr>';
+
+    // Direkte Klickbindung nach jedem Rendern: Der erste Klick fügt sofort hinzu.
+    body.querySelectorAll('button[data-add-tool-return]').forEach(btn => {
+      btn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const issueId = btn.getAttribute('data-add-tool-return');
+        addToolReturnToCart(issueId);
+        setToolBookingMode('return');
+        btn.textContent = '✓ Im Rückgabe-Warenkorb';
+        $('toolReturnCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
   }
 
   function renderToolBookings() {
@@ -2646,17 +2661,6 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('toolBookingsTab').onclick = () => showToolPanel('toolBookingsPanel');
   $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
   showToolPanel('toolCreatePanel');
-  $('toolIssuesBody').addEventListener('click', e => {
-    const btn = e.target.closest('button[data-add-tool-return]');
-    if (!btn) return;
-    e.preventDefault();
-    e.stopPropagation();
-    // Beim Hinzufügen aus der Ausgabehistorie automatisch auf Rückgabe umschalten,
-    // damit der Warenkorb nicht im gerade ausgeblendeten Ausgabemodus landet.
-    setToolBookingMode('return');
-    addToolReturnToCart(btn.getAttribute('data-add-tool-return'));
-    $('toolReturnCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
   $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
   $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
   $('checkoutToolReturnCartBtn').onclick = checkoutToolReturnCart;
