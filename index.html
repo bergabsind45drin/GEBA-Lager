@@ -1079,107 +1079,147 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     }).join('') || '<tr><td colspan="4" class="muted">Der Werkzeug-Rückgabe-Warenkorb ist leer. Füge unten bei einer offenen Ausgabe ein Werkzeug hinzu.</td></tr>';
   }
 
+  // Rückgabe ohne Abhängigkeit von einer separaten return_tool-SQL-RPC.
+  // Die Ausgabe wird zuerst mit einem Vergleich des alten Rückgabestands aktualisiert.
+  // Schlägt die Bestandskorrektur fehl, wird die Ausgabe zurückgesetzt.
+  async function bookToolReturn(issueId, quantity) {
+    if (!client) throw new Error('Keine Datenbankverbindung. Bitte neu anmelden.');
+
+    const { data: issue, error: issueLoadError } = await client
+      .from('tool_issues')
+      .select('id, tool_id, quantity, returned_quantity')
+      .eq('id', issueId)
+      .maybeSingle();
+
+    if (issueLoadError) throw new Error('Ausgabe konnte nicht geladen werden: ' + issueLoadError.message);
+    if (!issue) throw new Error('Die offene Werkzeugausgabe wurde nicht gefunden.');
+    if (!issue.tool_id) throw new Error('Diese Ausgabe ist keinem Werkzeug mehr zugeordnet.');
+
+    const issued = Number(issue.quantity || 0);
+    const returnedBefore = Number(issue.returned_quantity || 0);
+    const outstanding = Math.max(0, issued - returnedBefore);
+    const amount = Number(quantity);
+
+    if (!Number.isFinite(amount) || amount <= 0 || amount > outstanding) {
+      throw new Error('Ungültige Rückgabemenge. Noch offen: ' + outstanding + '.');
+    }
+
+    const { data: tool, error: toolLoadError } = await client
+      .from('tools')
+      .select('id, quantity')
+      .eq('id', issue.tool_id)
+      .maybeSingle();
+
+    if (toolLoadError) throw new Error('Werkzeugbestand konnte nicht geladen werden: ' + toolLoadError.message);
+    if (!tool) throw new Error('Das zugehörige Werkzeug wurde im Lager nicht gefunden.');
+
+    const oldStock = Number(tool.quantity || 0);
+    const newReturned = returnedBefore + amount;
+    const newStock = oldStock + amount;
+
+    // Compare-and-set verhindert, dass dieselbe Ausgabe parallel doppelt zurückgenommen wird.
+    let issueUpdate = client
+      .from('tool_issues')
+      .update({ returned_quantity: newReturned })
+      .eq('id', issueId);
+    issueUpdate = issue.returned_quantity == null
+      ? issueUpdate.is('returned_quantity', null)
+      : issueUpdate.eq('returned_quantity', returnedBefore);
+    const { data: changedIssue, error: issueUpdateError } = await issueUpdate.select('id');
+
+    if (issueUpdateError) {
+      throw new Error('Rückgabestatus konnte nicht gespeichert werden: ' + issueUpdateError.message);
+    }
+    if (!changedIssue || changedIssue.length === 0) {
+      throw new Error('Diese Ausgabe wurde zwischenzeitlich geändert. Bitte aktualisieren und erneut versuchen.');
+    }
+
+    const { data: changedTool, error: stockUpdateError } = await client
+      .from('tools')
+      .update({ quantity: newStock })
+      .eq('id', tool.id)
+      .eq('quantity', oldStock)
+      .select('id');
+
+    if (stockUpdateError || !changedTool || changedTool.length === 0) {
+      // Rückgabezähler zurücksetzen, falls der Lagerbestand nicht geändert werden konnte.
+      const { error: rollbackError } = await client
+        .from('tool_issues')
+        .update({ returned_quantity: issue.returned_quantity == null ? null : returnedBefore })
+        .eq('id', issueId)
+        .eq('returned_quantity', newReturned);
+
+      let message = stockUpdateError
+        ? 'Werkzeugbestand konnte nicht erhöht werden: ' + stockUpdateError.message
+        : 'Werkzeugbestand wurde nicht geändert. Möglicherweise fehlen UPDATE-Berechtigungen (RLS).';
+      if (rollbackError) {
+        message += ' ACHTUNG: Auch das Zurücksetzen des Rückgabestatus ist fehlgeschlagen: ' + rollbackError.message;
+      } else {
+        message += ' Die Rückgabebuchung wurde zurückgesetzt.';
+      }
+      throw new Error(message);
+    }
+
+    return { returned: newReturned, outstanding: Math.max(0, issued - newReturned) };
+  }
+
   async function checkoutToolReturnCart() {
     if (!client) {
       showToolReturnCartMessage('Keine Datenbankverbindung. Bitte neu anmelden und erneut versuchen.', true);
       return;
     }
     if (!toolReturnCart.length) {
-      showToolReturnCartMessage('Der Rückgabe-Warenkorb ist leer. Bitte zuerst bei einer offenen Ausgabe „Zum Rückgabe-Warenkorb“ wählen.', true);
+      showToolReturnCartMessage('Der Rückgabe-Warenkorb ist leer. Bitte zuerst bei einer offenen Ausgabe „Zum Rückgabe-Warenkorb hinzufügen“ wählen.', true);
       return;
     }
 
     const button = $('checkoutToolReturnCartBtn');
     if (button) button.disabled = true;
     let completed = 0;
+    let failed = false;
 
     try {
-      // Unmittelbar vor jeder Buchung den aktuellen Stand aus Supabase laden.
-      // So werden veraltete Browserdaten und doppelte Rückgaben vermieden.
-      const ids = toolReturnCart.map(item => item.issueId);
-      const { data: latestIssues, error: loadError } = await client
-        .from('tool_issues')
-        .select('id, tool_id, quantity, returned_quantity, employee_name, site_name')
-        .in('id', ids);
-
-      if (loadError) {
-        showToolReturnCartMessage('Aktuelle Ausgaben konnten nicht geladen werden: ' + loadError.message, true);
-        return;
-      }
-
       for (const item of [...toolReturnCart]) {
-        const issue = (latestIssues || []).find(x => String(x.id) === String(item.issueId));
-        const outstanding = issue
-          ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0))
-          : 0;
-
-        if (!issue || outstanding <= 0) {
-          showToolReturnCartMessage('Diese Ausgabe ist inzwischen bereits vollständig zurückgegeben oder nicht mehr vorhanden. Die Liste wird aktualisiert.', true);
-          await refreshAll();
-          toolReturnCart = toolReturnCart.filter(x => String(x.issueId) !== String(item.issueId));
-          renderToolReturnCart();
-          return;
-        }
-
-        const quantity = Number(item.quantity);
-        if (!(quantity > 0) || quantity > outstanding) {
-          showToolReturnCartMessage('Ungültige Rückgabemenge. Für diese Ausgabe sind aktuell noch ' + outstanding + ' Stück offen.', true);
-          await refreshAll();
-          return;
-        }
-
-        // RPC führt Rückgabe und Bestandsanpassung gemeinsam in der Datenbank aus.
-        let result;
         try {
-          result = await client.rpc('return_tool', {
-            p_issue_id: item.issueId,
-            p_quantity: quantity
-          });
-        } catch (rpcException) {
-          showToolReturnCartMessage('Supabase konnte die Rückgabe nicht ausführen: ' + (rpcException?.message || String(rpcException)), true);
-          return;
-        }
+          await bookToolReturn(item.issueId, item.quantity);
 
-        if (result?.error) {
-          const err = result.error;
-          showToolReturnCartMessage(
-            'Rückgabe nicht gebucht: ' + (err.message || 'Unbekannter Datenbankfehler') +
-            (err.details ? ' Details: ' + err.details : '') +
-            (err.hint ? ' Hinweis: ' + err.hint : '') +
-            '. Bitte SQL-Funktion „return_tool“ in Supabase prüfen. Der Eintrag bleibt im Warenkorb.',
-            true
-          );
-          await refreshAll();
-          return;
-        }
-
-        // Rücknahmefoto ist optional und darf eine erfolgreiche Rückgabe nicht rückgängig erscheinen lassen.
-        if (item.photoFile) {
-          try {
-            const path = await uploadToolPhoto(item.photoFile, item.issueId, 'ruecknahme');
-            const { error: photoError } = await client.rpc('set_tool_issue_photo', {
-              p_issue_id: item.issueId,
-              p_photo_kind: 'return',
-              p_photo_path: path
-            });
-            if (photoError) throw photoError;
-          } catch (photoError) {
-            showToolReturnCartMessage('Rückgabe wurde gebucht. Das Rücknahmefoto konnte jedoch nicht gespeichert werden: ' + (photoError.message || photoError), true);
+          // Foto ist optional. Ein Fotofehler macht die Rückgabebuchung nicht rückgängig.
+          let photoWarning = '';
+          if (item.photoFile) {
+            try {
+              const path = await uploadToolPhoto(item.photoFile, item.issueId, 'ruecknahme');
+              const { error: photoError } = await client.rpc('set_tool_issue_photo', {
+                p_issue_id: item.issueId,
+                p_photo_kind: 'return',
+                p_photo_path: path
+              });
+              if (photoError) throw photoError;
+            } catch (photoError) {
+              photoWarning = ' Rückgabe gespeichert, aber Foto nicht gespeichert: ' + (photoError?.message || String(photoError));
+            }
           }
-        }
 
-        toolReturnCart = toolReturnCart.filter(x => String(x.issueId) !== String(item.issueId));
-        completed++;
-        renderToolReturnCart();
+          toolReturnCart = toolReturnCart.filter(x => String(x.issueId) !== String(item.issueId));
+          completed++;
+          renderToolReturnCart();
+          if (photoWarning) showToolReturnCartMessage(photoWarning, true);
+        } catch (error) {
+          failed = true;
+          showToolReturnCartMessage('Rückgabe nicht gebucht: ' + (error?.message || String(error)) + ' Der Eintrag bleibt im Warenkorb.', true);
+          break;
+        }
       }
 
       await refreshAll();
       renderToolReturnCart();
-      if (completed > 0) {
-        showToolReturnCartMessage(completed + ' Rückgabe(n) erfolgreich in Supabase gebucht. Der Werkzeugbestand wurde aktualisiert.');
+
+      if (completed > 0 && !failed) {
+        showToolReturnCartMessage(completed + ' Rückgabe(n) erfolgreich gebucht. Der Lagerbestand wurde erhöht und das Werkzeug wird wieder als „Verfügbar“ angezeigt.');
+      } else if (completed > 0 && failed) {
+        showToolReturnCartMessage(completed + ' Rückgabe(n) gebucht. Eine weitere Rückgabe ist fehlgeschlagen; Details stehen oben. Der Bestand der gebuchten Werkzeuge wurde erhöht.', true);
       }
     } catch (error) {
-      showToolReturnCartMessage('Unerwarteter Fehler bei der Rückgabe: ' + (error?.message || String(error)), true);
+      showToolReturnCartMessage('Fehler bei der Rückgabe: ' + (error?.message || String(error)), true);
     } finally {
       if (button) button.disabled = false;
     }
@@ -1189,11 +1229,17 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const raw = prompt(`Wie viele Einheiten werden zurückgegeben? Noch offen: ${outstanding}`, String(outstanding));
     if (raw === null) return;
     const quantity = Number(raw);
-    if (!(quantity > 0) || quantity > outstanding) { alert('Bitte eine Menge größer 0 und höchstens ' + outstanding + ' eingeben.'); return; }
-    const { error } = await client.rpc('return_tool', { p_issue_id: issueId, p_quantity: quantity });
-    if (error) { notify('Rückgabe fehlgeschlagen: ' + error.message, true); return; }
-    await refreshAll();
-    notify('Rückgabe gespeichert und Lagerbestand erhöht.');
+    if (!(quantity > 0) || quantity > outstanding) {
+      alert('Bitte eine Menge größer 0 und höchstens ' + outstanding + ' eingeben.');
+      return;
+    }
+    try {
+      await bookToolReturn(issueId, quantity);
+      await refreshAll();
+      notify('Rückgabe gespeichert. Der Lagerbestand wurde erhöht; das Werkzeug ist bei vollständiger Rückgabe wieder verfügbar.');
+    } catch (error) {
+      notify('Rückgabe fehlgeschlagen: ' + (error?.message || String(error)), true);
+    }
   }
 
   function renderStockCartOptions(selectedId = '') {
