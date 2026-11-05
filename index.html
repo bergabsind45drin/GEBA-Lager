@@ -1634,7 +1634,27 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     }
   }
 
-  function articleForm(p = {}) {
+  async function articleForm(p = {}) {
+    // Beim Bearbeiten immer den vollständigen, aktuellen Datensatz laden.
+    // Die Artikelliste enthält absichtlich keine großen Bilddaten und kann
+    // außerdem einen älteren Lagerbestand enthalten.
+    if (p.id) {
+      const { data, error } = await client.from('products')
+        .select('*')
+        .eq('id', p.id)
+        .single();
+
+      if (error || !data) {
+        notify('Artikeldaten konnten nicht vollständig geladen werden: ' +
+          (error?.message || 'Artikel nicht gefunden. Bitte erneut versuchen.'), true);
+        return;
+      }
+
+      // Der Datenbankdatensatz ist maßgeblich: Bilder, Bestand und alle
+      // übrigen Felder werden vollständig und aktuell in das Formular übernommen.
+      p = { ...p, ...data };
+    }
+
     editingId = p.id || null;
     editingImageData = [p.image_data || null, p.image_data_2 || null, p.image_data_3 || null];
 
@@ -1941,10 +1961,10 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       $('editBookingProductBtn').style.display = selected && currentRole === 'office' ? '' : 'none';
     };
 
-    $('editBookingProductBtn').addEventListener('click', () => {
+    $('editBookingProductBtn').addEventListener('click', async () => {
       const selected = products.find(x => x.id === $('bProduct').value);
       if (!selected) return;
-      articleForm(selected);
+      await articleForm(selected);
     });
 
     $('bProduct').addEventListener('change', updateBookingProductLocation);
@@ -2580,11 +2600,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (b.dataset.action === 'edit') {
       b.disabled = true;
       try {
-        const { data, error } = await client.from('products')
-          .select('image_data,image_data_2,image_data_3')
-          .eq('id', p.id).single();
-        if (error) { notify('Artikelbilder konnten nicht geladen werden: ' + error.message, true); return; }
-        articleForm({ ...p, ...(data || {}) });
+        await articleForm(p);
       } finally { b.disabled = false; }
     } else if (b.dataset.action === 'delete') {
       deleteProduct(p);
