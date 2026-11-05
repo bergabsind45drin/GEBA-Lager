@@ -319,7 +319,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <div class="row view-heading"><button id="toolsHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>Werkzeuge</h2></div>
       <section class="panel" id="toolIssueSection">
       <h2>🧰 Werkzeugbereich</h2>
-      <p class="muted">Der Werkzeugbereich ist in drei Bereiche aufgeteilt.</p>
+      <p class="muted">Der Werkzeugbereich ist in vier Bereiche aufgeteilt.</p>
       <div class="row" style="margin:12px 0 18px;gap:8px;flex-wrap:wrap">
         <button type="button" class="secondary" id="toolCreateTab">Werkzeug anlegen</button>
         <button type="button" class="secondary" id="toolWarehouseTab">Werkzeuglager</button>
@@ -351,7 +351,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <h3>Werkzeuge verwalten – Ausgabe und Rückgabe</h3>
       <p class="muted">Hier buchst du Werkzeuge wie gewohnt auf Mitarbeiter und Baustellen ein und aus. Die Ausgabehistorie bleibt erhalten.</p>
       <h3 style="margin-top:22px">Werkzeug vergeben</h3>
-      <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bei Ausgabe sinkt der Lagerbestand automatisch; bei Rückgabe steigt er wieder.</p>
+      <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bitte für jedes Werkzeug ein Foto aufnehmen. Bei Rückgabe wird das Ausgabefoto zum Vergleich angezeigt; ein Rücknahmefoto ist zusätzlich möglich.</p>
       <div class="tool-form">
         <div class="field"><label for="toolEmployee">Mitarbeiter</label><input id="toolEmployee" placeholder="Vor- und Nachname"></div>
         <div class="field"><label for="toolSite">Baustelle</label><input id="toolSite" placeholder="Name oder Adresse der Baustelle"></div>
@@ -595,7 +595,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
         .order('created_at', { ascending: false }).limit(30),
       client.from('tool_issues')
-        .select('id,tool_id,employee_name,site_name,quantity,returned_quantity,notes,issued_at,tool_name_snapshot,tool_unit_snapshot,tools!tool_issues_tool_id_fkey(name,unit)')
+        .select('id,tool_id,employee_name,site_name,quantity,returned_quantity,notes,issued_at,tool_name_snapshot,tool_unit_snapshot,issue_photo_path,return_photo_path,tools!tool_issues_tool_id_fkey(name,unit)')
         .order('issued_at', { ascending: false }).limit(150),
       client.from('tools')
         .select('id,name,unit,quantity,code,active')
@@ -611,6 +611,19 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     movements = m.data || [];
     if (ti.error) { notify('Werkzeugausgaben konnten nicht geladen werden: ' + ti.error.message, true); }
     toolIssues = ti.data || [];
+    if (!ti.error && toolIssues.length) {
+      toolIssues = await Promise.all(toolIssues.map(async issue => {
+        const [issuedPhoto, returnedPhoto] = await Promise.all([
+          issue.issue_photo_path ? client.storage.from('tool-issue-photos').createSignedUrl(issue.issue_photo_path, 3600) : Promise.resolve({data:null}),
+          issue.return_photo_path ? client.storage.from('tool-issue-photos').createSignedUrl(issue.return_photo_path, 3600) : Promise.resolve({data:null})
+        ]);
+        return {
+          ...issue,
+          issue_photo_url: issuedPhoto.data?.signedUrl || null,
+          return_photo_url: returnedPhoto.data?.signedUrl || null
+        };
+      }));
+    }
     if (t.error) { notify('Werkzeuge konnten nicht geladen werden: ' + t.error.message, true); }
     tools = t.data || [];
     renderTools();
@@ -658,11 +671,12 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       const status = hasOpenIssue
         ? '<span style="display:inline-block;background:#fee2e2;color:#b91c1c;padding:4px 9px;border-radius:999px;font-weight:700;">Rot · Ausgegeben</span>'
         : '<span style="display:inline-block;background:#dcfce7;color:#15803d;padding:4px 9px;border-radius:999px;font-weight:700;">Grün · Verfügbar</span>';
-      return `<tr data-tool-row="${t.id}"><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${status}<button type="button" class="secondary smallbtn" data-delete-tool="${t.id}">Löschen</button></div></td></tr>`;
+      return `<tr data-tool-row="${t.id}"><td data-label="Werkzeug">${escapeHtml(t.name)}</td><td data-label="Nummer">${escapeHtml(t.code || '–')}</td><td data-label="Bestand verfügbar">${Number(t.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(t.unit || 'Stück')}</td><td data-label="Aktion"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${status}${editorMode ? `<button type="button" class="danger smallbtn" data-delete-tool="${t.id}">Löschen</button>` : ''}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="muted">Noch keine Werkzeuge angelegt.</td></tr>';
   }
 
   async function deleteTool(toolId) {
+    if (!editorMode) { notify('Löschen ist nur im Editor-Modus möglich.', true); return; }
     const tool = tools.find(t => t.id === toolId);
     if (!tool) return;
     const { data: issues, error: issueError } = await client.from('tool_issues').select('id, quantity, returned_quantity').eq('tool_id', toolId);
@@ -769,7 +783,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
         <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(x.notes || '')}</span></td>
         <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
-        <td data-label="Status / Rückgabe">${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-add-tool-return="${x.id}" data-outstanding="${outstanding}">＋ Zum Rückgabe-Warenkorb</button>`}
+        <td data-label="Status / Rückgabe">${photoPreview(x.issue_photo_url, 'Ausgabefoto')}${photoPreview(x.return_photo_url, 'Letztes Rücknahmefoto')}<br>${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-add-tool-return="${x.id}" data-outstanding="${outstanding}">＋ Zum Rückgabe-Warenkorb</button>`}
           ${editorMode ? `<div class="row" style="margin-top:6px"><button type="button" class="secondary smallbtn" data-edit-issue="${x.id}">Bearbeiten</button><button type="button" class="danger smallbtn" data-delete-issue="${x.id}">Löschen</button></div>` : ''}
         </td>
       </tr>`;
@@ -793,7 +807,11 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
         <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}</td>
         <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
-        <td data-label="Status">${status}</td>
+        <td data-label="Status">${status}
+          ${photoPreview(x.issue_photo_url, 'Ausgabefoto')}
+          ${photoPreview(x.return_photo_url, 'Rücknahmefoto')}
+          ${editorMode ? `<div class="row" style="margin-top:6px"><button type="button" class="danger smallbtn" data-delete-issue="${x.id}">Löschen</button></div>` : ''}
+        </td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" class="muted">Noch keine Werkzeugbuchungen vorhanden.</td></tr>';
   }
@@ -805,13 +823,52 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     el.classList.remove('hidden');
   }
 
+  async function prepareToolPhoto(file) {
+    if (!file) return null;
+    if (!file.type || !file.type.startsWith('image/')) throw new Error('Bitte eine Bilddatei auswählen.');
+    try {
+      const bitmap = await createImageBitmap(file);
+      const maxSide = 1400;
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close?.();
+      return await new Promise(resolve => canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', 0.82));
+    } catch (e) {
+      return file;
+    }
+  }
+
+  async function uploadToolPhoto(file, issueId, kind) {
+    if (!file) return null;
+    const blob = await prepareToolPhoto(file);
+    const path = `${issueId}/${kind}-${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const { error } = await client.storage.from('tool-issue-photos').upload(path, blob, {
+      contentType: 'image/jpeg',
+      upsert: false
+    });
+    if (error) throw error;
+    return path;
+  }
+
+  function photoPreview(url, label) {
+    return url
+      ? `<div style="margin-top:6px"><span class="muted">${label}</span><br><img class="product-thumb" src="${escapeHtml(url)}" alt="${label}" data-lightbox-src="${escapeHtml(url)}"></div>`
+      : '';
+  }
+
   function renderToolCart() {
     const body = $('toolCartBody');
     if (!body) return;
     body.innerHTML = toolCart.map((item, index) => {
       const tool = tools.find(t => t.id === item.toolId);
       return `<tr>
-        <td>${escapeHtml(tool?.name || 'Unbekannter Artikel')}<br><span class="muted">${escapeHtml(tool?.code || '')}</span></td>
+        <td>${escapeHtml(tool?.name || 'Unbekannter Artikel')}<br><span class="muted">${escapeHtml(tool?.code || '')}</span>
+          <div class="field" style="margin:8px 0 0"><label>Ausgabefoto (Pflicht)</label><input type="file" accept="image/*" capture="environment" data-cart-photo="${index}" style="max-width:240px"><span class="muted">${item.photoFile ? 'Foto ausgewählt: ' + escapeHtml(item.photoFile.name || 'Kamerafoto') : 'Bitte Foto aufnehmen oder auswählen.'}</span></div>
+        </td>
         <td><input type="number" min="0.01" step="0.01" value="${item.quantity}" data-cart-qty="${index}" style="max-width:110px"></td>
         <td><button type="button" class="secondary smallbtn" data-cart-remove="${index}">Entfernen</button></td>
       </tr>`;
@@ -826,7 +883,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     }
     const existing = toolCart.find(x => x.toolId === toolId);
     if (existing) existing.quantity += quantity;
-    else toolCart.push({ toolId, quantity });
+    else toolCart.push({ toolId, quantity, photoFile: null });
     $('toolQuantity').value = '1';
     renderToolCart();
     showToolMessage('Artikel wurde zum Warenkorb hinzugefügt.');
@@ -846,6 +903,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       if (!(Number(item.quantity) > 0)) {
         showToolMessage('Bitte bei allen Artikeln eine gültige Menge eintragen.', true); return;
       }
+      if (!item.photoFile) {
+        showToolMessage('Bitte für jedes Werkzeug ein Ausgabefoto aufnehmen oder auswählen.', true); return;
+      }
       const tool = tools.find(t => t.id === item.toolId);
       if (!tool || Number(item.quantity) > Number(tool.quantity || 0)) {
         showToolMessage(`Nicht genügend Bestand für „${tool?.name || 'Artikel'}“. Verfügbar: ${tool?.quantity ?? 0}.`, true); return;
@@ -853,6 +913,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     }
 
     const items = toolCart.map(x => ({ tool_id: x.toolId, quantity: Number(x.quantity) }));
+    const cartForPhotos = toolCart.map(x => ({ ...x }));
+    const checkoutStartedAt = new Date(Date.now() - 120000).toISOString();
     $('checkoutToolCartBtn').disabled = true;
     $('addToolCartBtn').disabled = true;
     const { error } = await client.rpc('issue_tools_batch', {
@@ -871,7 +933,30 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     $('toolQuantity').value = '1';
     $('toolNotes').value = '';
     renderToolCart();
-    showToolMessage('Alle Artikel wurden gemeinsam ausgegeben. Mitarbeiter, Baustelle und Notiz wurden für jeden Eintrag übernommen.');
+    showToolMessage('Ausgabe gebucht. Die Ausgabefotos werden gespeichert …');
+    try {
+      const { data: newIssues, error: findError } = await client.from('tool_issues')
+        .select('id,tool_id')
+        .eq('employee_name', employee)
+        .eq('site_name', site)
+        .eq('issued_by', currentUser.id)
+        .gte('issued_at', checkoutStartedAt)
+        .order('issued_at', { ascending: false })
+        .limit(100);
+      if (findError) throw findError;
+      const remaining = [...(newIssues || [])];
+      for (const item of cartForPhotos) {
+        const issue = remaining.find(x => String(x.tool_id) === String(item.toolId));
+        if (!issue) throw new Error('Die neue Ausgabe für ein Werkzeug konnte nicht zugeordnet werden.');
+        remaining.splice(remaining.indexOf(issue), 1);
+        const path = await uploadToolPhoto(item.photoFile, issue.id, 'ausgabe');
+        const { error: photoError } = await client.rpc('set_tool_issue_photo', { p_issue_id: issue.id, p_photo_kind: 'issue', p_photo_path: path });
+        if (photoError) throw photoError;
+      }
+      showToolMessage('Werkzeuge ausgegeben und Ausgabefotos gespeichert.');
+    } catch (photoError) {
+      showToolMessage('Ausgabe wurde gebucht, aber mindestens ein Foto konnte nicht gespeichert werden: ' + (photoError.message || photoError), true);
+    }
     await refreshAll();
   }
 
@@ -901,7 +986,10 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     body.innerHTML = toolReturnCart.map((item, index) => {
       const issue = toolIssues.find(x => String(x.id) === String(item.issueId));
       const outstanding = issue ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)) : 0;
-      return `<tr><td>${escapeHtml(issue?.tools?.name || issue?.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(issue?.employee_name || '')} · ${escapeHtml(issue?.site_name || '')}</span></td><td>${outstanding.toLocaleString('de-DE')}</td><td><input type="number" min="0.01" step="0.01" max="${outstanding}" value="${item.quantity}" data-tool-return-qty="${index}" style="max-width:110px"></td><td><button type="button" class="secondary smallbtn" data-tool-return-remove="${index}">Entfernen</button></td></tr>`;
+      return `<tr><td>${escapeHtml(issue?.tools?.name || issue?.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(issue?.employee_name || '')} · ${escapeHtml(issue?.site_name || '')}</span>
+        ${photoPreview(issue?.issue_photo_url, 'So wurde es ausgegeben')}
+        <div class="field" style="margin:8px 0 0"><label>Rücknahmefoto (optional)</label><input type="file" accept="image/*" capture="environment" data-tool-return-photo="${index}" style="max-width:240px"><span class="muted">${item.photoFile ? 'Foto ausgewählt: ' + escapeHtml(item.photoFile.name || 'Kamerafoto') : 'Bei Bedarf Zustand bei Rückgabe fotografieren.'}</span></div>
+      </td><td>${outstanding.toLocaleString('de-DE')}</td><td><input type="number" min="0.01" step="0.01" max="${outstanding}" value="${item.quantity}" data-tool-return-qty="${index}" style="max-width:110px"></td><td><button type="button" class="secondary smallbtn" data-tool-return-remove="${index}">Entfernen</button></td></tr>`;
     }).join('') || '<tr><td colspan="4" class="muted">Der Werkzeug-Rückgabe-Warenkorb ist leer. Füge unten bei einer offenen Ausgabe ein Werkzeug hinzu.</td></tr>';
   }
 
@@ -924,6 +1012,15 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
           showToolReturnCartMessage('Eine Rückgabe ist fehlgeschlagen: ' + error.message + '. Bereits erfolgreich gebuchte Rückgaben bleiben gespeichert.', true);
           await refreshAll();
           return;
+        }
+        if (item.photoFile) {
+          try {
+            const path = await uploadToolPhoto(item.photoFile, item.issueId, 'ruecknahme');
+            const { error: photoError } = await client.rpc('set_tool_issue_photo', { p_issue_id: item.issueId, p_photo_kind: 'return', p_photo_path: path });
+            if (photoError) throw photoError;
+          } catch (photoError) {
+            showToolReturnCartMessage('Rückgabe wurde gebucht, aber das Rücknahmefoto konnte nicht gespeichert werden: ' + (photoError.message || photoError), true);
+          }
         }
       }
       toolReturnCart = [];
@@ -1173,6 +1270,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     $('editorModeBtn').classList.toggle('danger', enabled);
     renderMovements();
     renderToolIssues();
+    renderTools();
+    renderToolBookings();
     notify(enabled ? 'Editor-Modus aktiviert.' : 'Editor-Modus beendet.');
   }
 
@@ -1263,6 +1362,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   async function deleteToolIssue(x) {
+    if (!editorMode) { notify('Löschen ist nur im Editor-Modus möglich.', true); return; }
     if (!confirm('Diese Werkzeugausgabe wirklich löschen? Eine noch offene Menge wird dem Werkzeugbestand wieder gutgeschrieben.')) return;
     const outstanding=Math.max(0,Number(x.quantity||0)-Number(x.returned_quantity||0));
     if(outstanding && x.tool_id){
@@ -2297,6 +2397,12 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const btn = e.target.closest('button[data-cart-remove]');
     if (btn) { toolCart.splice(Number(btn.dataset.cartRemove), 1); renderToolCart(); }
   });
+  $('toolCartBody').addEventListener('change', e => {
+    const input = e.target.closest('input[data-cart-photo]');
+    if (!input) return;
+    const item = toolCart[Number(input.dataset.cartPhoto)];
+    if (item) { item.photoFile = input.files?.[0] || null; renderToolCart(); }
+  });
   renderToolCart();
   $('scanNewToolQrBtn').onclick = () => scanToolQr(code => {
     $('newToolCode').value = code;
@@ -2331,6 +2437,12 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('toolReturnCartBody').addEventListener('input', e => {
     const input = e.target.closest('[data-tool-return-qty]');
     if (input && toolReturnCart[Number(input.dataset.toolReturnQty)]) toolReturnCart[Number(input.dataset.toolReturnQty)].quantity = Number(input.value);
+  });
+  $('toolReturnCartBody').addEventListener('change', e => {
+    const input = e.target.closest('input[data-tool-return-photo]');
+    if (!input) return;
+    const item = toolReturnCart[Number(input.dataset.toolReturnPhoto)];
+    if (item) { item.photoFile = input.files?.[0] || null; renderToolReturnCart(); }
   });
   $('toolReturnCartBody').addEventListener('click', e => {
     const btn = e.target.closest('[data-tool-return-remove]');
