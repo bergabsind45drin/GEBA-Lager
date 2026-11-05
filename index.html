@@ -1401,9 +1401,33 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   function productMatchesSearch(product, query, fields = ['name', 'sku', 'barcode', 'location']) {
-    if (!String(query || '').trim()) return true;
+    const rawQuery = String(query || '').trim();
+    if (!rawQuery) return true;
+
+    // Lagerort-Codes schrittweise eingrenzen:
+    // "4-F" findet 4-F-1, 4-F-2, 4-F-3 usw.
+    // "4-F-3" findet nur Lagerorte, deren erste drei Segmente 4-F-3 sind.
+    // Verglichen wird feldweise, damit keine Zufallstreffer entstehen.
+    const isStructuredCode = /\d/.test(rawQuery) && /[-_\/\s]/.test(rawQuery);
+    if (isStructuredCode) {
+      const codeParts = value => String(value || '')
+        .toLocaleLowerCase('de-DE')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .split(/[-_\/\s]+/)
+        .map(part => part.replace(/[^a-z0-9]/g, ''))
+        .filter(Boolean);
+      const queryParts = codeParts(rawQuery);
+      if (!queryParts.length) return false;
+
+      return fields.some(field => {
+        const valueParts = codeParts(product?.[field]);
+        return valueParts.length >= queryParts.length &&
+          queryParts.every((part, index) => valueParts[index] === part);
+      });
+    }
+
     const searchable = fields.map(field => product?.[field] || '').join(' ');
-    return searchTextMatches(searchable, query);
+    return searchTextMatches(searchable, rawQuery);
   }
 
   function renderProducts() {
