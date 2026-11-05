@@ -593,6 +593,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   async function refreshAll() {
     if (!client || !currentUser) return;
 
+    // Bildcache leeren, damit neu gespeicherte oder geänderte Fotos sofort erscheinen.
+    productImageCache.clear();
+
     // Kleine Listenabfragen: große Bilddaten werden NICHT bei jedem Refresh geladen.
     // Bilder werden erst beim Öffnen eines einzelnen Artikels nachgeladen.
     const [p, m, ti, t] = await Promise.all([
@@ -1347,10 +1350,13 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         try {
           let imageData = productImageCache.get(id);
           if (imageData === undefined) {
+            // Es können bis zu drei Bilder gespeichert sein. Nicht nur Bild 1 prüfen:
+            // ist Bild 1 leer, muss Bild 2 oder 3 in der Lagerliste erscheinen.
             const { data, error } = await client.from('products')
-              .select('image_data').eq('id', id).maybeSingle();
+              .select('image_data,image_data_2,image_data_3')
+              .eq('id', id).maybeSingle();
             if (error) throw error;
-            imageData = data?.image_data || null;
+            imageData = data?.image_data || data?.image_data_2 || data?.image_data_3 || null;
             productImageCache.set(id, imageData);
           }
           if (imageData) {
@@ -1405,7 +1411,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
     const list = products.filter(p =>
       (!showOnlyLow || Number(p.quantity) <= Number(p.min_quantity || 0)) &&
-      productMatchesSearch(p, q)
+      productMatchesSearch(p, q, ['name', 'sku', 'barcode', 'location'])
     );
 
     $('productsBody').innerHTML = list.map(p => `
