@@ -1080,41 +1080,108 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   async function checkoutToolReturnCart() {
-    if (!toolReturnCart.length) { showToolReturnCartMessage('Der Rückgabe-Warenkorb ist leer.', true); return; }
+    if (!client) {
+      showToolReturnCartMessage('Keine Datenbankverbindung. Bitte neu anmelden und erneut versuchen.', true);
+      return;
+    }
+    if (!toolReturnCart.length) {
+      showToolReturnCartMessage('Der Rückgabe-Warenkorb ist leer. Bitte zuerst bei einer offenen Ausgabe „Zum Rückgabe-Warenkorb“ wählen.', true);
+      return;
+    }
+
     const button = $('checkoutToolReturnCartBtn');
-    button.disabled = true;
+    if (button) button.disabled = true;
+    let completed = 0;
+
     try {
-      for (const item of toolReturnCart) {
-        const issue = toolIssues.find(x => String(x.id) === String(item.issueId));
-        const outstanding = issue ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)) : 0;
-        if (!issue || !(Number(item.quantity) > 0) || Number(item.quantity) !== outstanding) {
-          showToolReturnCartMessage('Bitte prüfe die Rückgabemengen. Eine Menge ist ungültig oder bereits zurückgebucht.', true);
+      // Unmittelbar vor jeder Buchung den aktuellen Stand aus Supabase laden.
+      // So werden veraltete Browserdaten und doppelte Rückgaben vermieden.
+      const ids = toolReturnCart.map(item => item.issueId);
+      const { data: latestIssues, error: loadError } = await client
+        .from('tool_issues')
+        .select('id, tool_id, quantity, returned_quantity, employee_name, site_name')
+        .in('id', ids);
+
+      if (loadError) {
+        showToolReturnCartMessage('Aktuelle Ausgaben konnten nicht geladen werden: ' + loadError.message, true);
+        return;
+      }
+
+      for (const item of [...toolReturnCart]) {
+        const issue = (latestIssues || []).find(x => String(x.id) === String(item.issueId));
+        const outstanding = issue
+          ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0))
+          : 0;
+
+        if (!issue || outstanding <= 0) {
+          showToolReturnCartMessage('Diese Ausgabe ist inzwischen bereits vollständig zurückgegeben oder nicht mehr vorhanden. Die Liste wird aktualisiert.', true);
+          await refreshAll();
+          toolReturnCart = toolReturnCart.filter(x => String(x.issueId) !== String(item.issueId));
+          renderToolReturnCart();
           return;
         }
-      }
-      for (const item of toolReturnCart) {
-        const { error } = await client.rpc('return_tool', { p_issue_id: item.issueId, p_quantity: Number(item.quantity) });
-        if (error) {
-          showToolReturnCartMessage('Eine Rückgabe ist fehlgeschlagen: ' + error.message + '. Bereits erfolgreich gebuchte Rückgaben bleiben gespeichert.', true);
+
+        const quantity = Number(item.quantity);
+        if (!(quantity > 0) || quantity > outstanding) {
+          showToolReturnCartMessage('Ungültige Rückgabemenge. Für diese Ausgabe sind aktuell noch ' + outstanding + ' Stück offen.', true);
           await refreshAll();
           return;
         }
+
+        // RPC führt Rückgabe und Bestandsanpassung gemeinsam in der Datenbank aus.
+        let result;
+        try {
+          result = await client.rpc('return_tool', {
+            p_issue_id: item.issueId,
+            p_quantity: quantity
+          });
+        } catch (rpcException) {
+          showToolReturnCartMessage('Supabase konnte die Rückgabe nicht ausführen: ' + (rpcException?.message || String(rpcException)), true);
+          return;
+        }
+
+        if (result?.error) {
+          const err = result.error;
+          showToolReturnCartMessage(
+            'Rückgabe nicht gebucht: ' + (err.message || 'Unbekannter Datenbankfehler') +
+            (err.details ? ' Details: ' + err.details : '') +
+            (err.hint ? ' Hinweis: ' + err.hint : '') +
+            '. Bitte SQL-Funktion „return_tool“ in Supabase prüfen. Der Eintrag bleibt im Warenkorb.',
+            true
+          );
+          await refreshAll();
+          return;
+        }
+
+        // Rücknahmefoto ist optional und darf eine erfolgreiche Rückgabe nicht rückgängig erscheinen lassen.
         if (item.photoFile) {
           try {
             const path = await uploadToolPhoto(item.photoFile, item.issueId, 'ruecknahme');
-            const { error: photoError } = await client.rpc('set_tool_issue_photo', { p_issue_id: item.issueId, p_photo_kind: 'return', p_photo_path: path });
+            const { error: photoError } = await client.rpc('set_tool_issue_photo', {
+              p_issue_id: item.issueId,
+              p_photo_kind: 'return',
+              p_photo_path: path
+            });
             if (photoError) throw photoError;
           } catch (photoError) {
-            showToolReturnCartMessage('Rückgabe wurde gebucht, aber das Rücknahmefoto konnte nicht gespeichert werden: ' + (photoError.message || photoError), true);
+            showToolReturnCartMessage('Rückgabe wurde gebucht. Das Rücknahmefoto konnte jedoch nicht gespeichert werden: ' + (photoError.message || photoError), true);
           }
         }
+
+        toolReturnCart = toolReturnCart.filter(x => String(x.issueId) !== String(item.issueId));
+        completed++;
+        renderToolReturnCart();
       }
-      toolReturnCart = [];
+
       await refreshAll();
       renderToolReturnCart();
-      showToolReturnCartMessage('Alle Rückgaben aus dem Werkzeug-Warenkorb wurden gebucht.');
+      if (completed > 0) {
+        showToolReturnCartMessage(completed + ' Rückgabe(n) erfolgreich in Supabase gebucht. Der Werkzeugbestand wurde aktualisiert.');
+      }
+    } catch (error) {
+      showToolReturnCartMessage('Unerwarteter Fehler bei der Rückgabe: ' + (error?.message || String(error)), true);
     } finally {
-      button.disabled = false;
+      if (button) button.disabled = false;
     }
   }
 
