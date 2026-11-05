@@ -804,7 +804,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         }
         selected = openIssues[choice - 1];
       }
+      setToolBookingMode('return');
       addToolReturnToCart(selected.id);
+      $('toolReturnCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       showToolReturnCartMessage(`QR-Code erkannt: „${tool.name}“ für ${selected.employee_name || 'Mitarbeiter'} wurde zur Rückgabe hinzugefügt.`);
     });
   }
@@ -2536,7 +2538,11 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
+    // Beim Hinzufügen aus der Ausgabehistorie automatisch auf Rückgabe umschalten,
+    // damit der Warenkorb nicht im gerade ausgeblendeten Ausgabemodus landet.
+    setToolBookingMode('return');
     addToolReturnToCart(btn.getAttribute('data-add-tool-return'));
+    $('toolReturnCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
   $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
   $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
