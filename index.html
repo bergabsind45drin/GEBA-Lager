@@ -790,7 +790,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
         <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(x.notes || '')}</span></td>
         <td data-label="Menge">${issued.toLocaleString('de-DE')} ${escapeHtml(x.tools?.unit || x.tool_unit_snapshot || 'Stück')}</td>
-        <td data-label="Status / Rückgabe">${photoPreview(x.issue_photo_url, 'Ausgabefoto')}${photoPreview(x.return_photo_url, 'Letztes Rücknahmefoto')}<br>${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button class="secondary smallbtn" data-add-tool-return="${x.id}" data-outstanding="${outstanding}">＋ Zum Rückgabe-Warenkorb</button>`}
+        <td data-label="Status / Rückgabe">${photoPreview(x.issue_photo_url, 'Ausgabefoto')}${photoPreview(x.return_photo_url, 'Letztes Rücknahmefoto')}<br>${outstanding <= 0 ? '<span class="pill">Vollständig zurück</span>' : `Offen: <b>${outstanding.toLocaleString('de-DE')}</b><br><button type="button" class="secondary smallbtn" data-add-tool-return="${x.id}" data-outstanding="${outstanding}">＋ Zum Rückgabe-Warenkorb</button>`}
           ${editorMode ? `<div class="row" style="margin-top:6px"><button type="button" class="secondary smallbtn" data-edit-issue="${x.id}">Bearbeiten</button><button type="button" class="danger smallbtn" data-delete-issue="${x.id}">Löschen</button></div>` : ''}
         </td>
       </tr>`;
@@ -2466,6 +2466,13 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('toolBookingsTab').onclick = () => showToolPanel('toolBookingsPanel');
   $('toolsBody').addEventListener('click', e => { const btn = e.target.closest('button[data-delete-tool]'); if (btn) deleteTool(btn.dataset.deleteTool); });
   showToolPanel('toolCreatePanel');
+  $('toolIssuesBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-add-tool-return]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    addToolReturnToCart(btn.getAttribute('data-add-tool-return'));
+  });
   $('toolAllBtn').onclick = () => { showOnlyActiveTools = false; renderToolIssues(); };
   $('toolActiveBtn').onclick = () => { showOnlyActiveTools = true; renderToolIssues(); };
   $('checkoutToolReturnCartBtn').onclick = checkoutToolReturnCart;
@@ -2489,8 +2496,6 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   document.addEventListener('click', e => {
     const btn = e.target && e.target.closest ? e.target.closest('button') : null;
     if (!btn) return;
-    const addReturnIssueId = btn.getAttribute('data-add-tool-return');
-    if (addReturnIssueId) { e.preventDefault(); addToolReturnToCart(addReturnIssueId); return; }
     const editIssueId = btn.getAttribute('data-edit-issue');
     const deleteIssueId = btn.getAttribute('data-delete-issue');
     const editMoveId = btn.getAttribute('data-edit-movement');
