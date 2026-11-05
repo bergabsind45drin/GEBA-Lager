@@ -1369,77 +1369,29 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
 
-  // Einheitliche, tolerante Artikelsuche: ignoriert Trennzeichen und Großschreibung,
-  // akzeptiert Teilbegriffe sowie kleine Tippfehler.
+  // Präzise Teilwortsuche: Groß-/Kleinschreibung und Umlaute werden ignoriert,
+  // aber es gibt keine unscharfe Tippfehler-Toleranz.
   function normalizeSearchText(value) {
     return String(value || '')
       .toLocaleLowerCase('de-DE')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '');
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   }
 
   function searchTextMatches(haystack, query) {
-    const normalizedQuery = String(query || '')
-      .toLocaleLowerCase('de-DE')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return true;
 
-    if (!normalizedQuery.trim()) return true;
+    const normalizedText = normalizeSearchText(haystack);
+    const queryParts = normalizedQuery.split(/\s+/).filter(Boolean);
+    const textParts = normalizedText.split(/\s+/).filter(Boolean);
 
-    // Suchbegriffe einzeln auswerten. Dadurch funktionieren auch mehrere
-    // Schlagwörter, ohne dass die komplette Bezeichnung exakt eingegeben
-    // werden muss (z. B. "niete 4mm" oder "blind niet").
-    const queryParts = normalizedQuery
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean);
-
-    const textParts = String(haystack || '')
-      .toLocaleLowerCase('de-DE')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean);
-
-    if (!queryParts.length) return true;
-
-    // Häufige deutsche Endungen entfernen: "Niete" -> "niet",
-    // "Schrauben" -> "schraub". So findet man auch verwandte Wortformen.
-    const getSearchVariants = word => {
-      const variants = [word];
-      for (const suffix of ['ern', 'en', 'er', 'es', 'e', 'n', 's']) {
-        if (word.length - suffix.length >= 3 && word.endsWith(suffix)) {
-          variants.push(word.slice(0, -suffix.length));
-        }
-      }
-      return [...new Set(variants)];
-    };
-
-    const closeEnough = (a, b) => {
-      if (a.includes(b) || b.includes(a)) return true;
-      if (a.length < 4 || b.length < 4 || Math.abs(a.length - b.length) > 1) return false;
-
-      let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
-      for (let i = 1; i <= a.length; i++) {
-        const current = [i];
-        for (let j = 1; j <= b.length; j++) {
-          current[j] = Math.min(
-            current[j - 1] + 1,
-            previous[j] + 1,
-            previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
-          );
-        }
-        if (Math.min(...current) > 1) return false;
-        previous = current;
-      }
-      return previous[b.length] <= 1;
-    };
-
-    // Jeder eingegebene Begriff muss irgendwo im Artikel vorkommen.
-    // Ein einzelner Begriff darf dabei auch nur ein Teil eines Wortes sein.
-    return queryParts.every(queryPart => {
-      const variants = getSearchVariants(queryPart);
-      return textParts.some(textPart =>
-        variants.some(variant => closeEnough(textPart, variant))
-      );
-    });
+    // Jeder Suchbegriff muss als zusammenhängender Teil eines vorhandenen
+    // Wortes vorkommen. Beispiel: "niete" findet auch "blindniete".
+    return queryParts.every(queryPart =>
+      textParts.some(textPart => textPart.includes(queryPart))
+    );
   }
 
   function productMatchesSearch(product, query, fields = ['name', 'sku', 'barcode', 'location']) {
