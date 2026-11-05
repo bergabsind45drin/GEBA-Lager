@@ -332,7 +332,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <div class="tool-form">
         <div class="field"><label for="newToolName">Werkzeugname</label><input id="newToolName" placeholder="z. B. Bohrhammer"></div>
         <div class="field"><label for="newToolUnit">Einheit</label><input id="newToolUnit" value="Stück" placeholder="Stück"></div>
-        <div class="field"><label for="newToolQty">Verfügbarer Bestand</label><input id="newToolQty" type="number" min="0" step="1" value="1"></div>
+        <div class="field"><label for="newToolQty">Einzelwerkzeug (Bestand immer 1)</label><input id="newToolQty" type="number" min="1" max="1" step="1" value="1" readonly></div>
         <div class="field"><label for="newToolCode">Inventar-/Seriennummer / QR-Nummer</label><input id="newToolCode" placeholder="z. B. WZ-001"><button type="button" id="scanNewToolQrBtn" class="secondary" style="margin-top:6px;width:100%">▦ QR-Code scannen</button></div>
         <div class="wide"><button id="createToolBtn">Werkzeug anlegen</button><div id="toolCreateMsg" class="msg hidden"></div></div>
       </div>
@@ -364,7 +364,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="field"><label for="toolProduct">Werkzeug / Artikel</label><select id="toolProduct"></select></div>
         <div class="field"><label for="toolQuantity">Menge</label><input id="toolQuantity" type="number" min="0.01" step="0.01" value="1"></div>
         <div class="field wide"><label for="toolNotes">Notiz (optional)</label><input id="toolNotes" placeholder="z. B. Seriennummer oder Zustand"></div>
-        <div class="wide"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button><div id="toolIssueMsg" class="msg hidden" style="margin-top:8px"></div></div>
+        <div class="wide row" style="gap:8px;flex-wrap:wrap"><button type="button" id="addToolCartBtn" class="secondary">＋ Zum Warenkorb hinzufügen</button><button type="button" id="scanToolIssueQrBtn" class="secondary">▦ QR-Code scannen und ausgeben</button></div><div id="toolIssueMsg" class="msg hidden" style="margin-top:8px"></div>
       </div>
       </div>
       <section class="panel" id="toolIssueCartPanel" style="border:2px solid var(--primary,#2563eb);margin:14px 0">
@@ -379,7 +379,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <h3 style="margin-top:22px">Werkzeug zurückbuchen / Ausgabehistorie</h3>
       <section class="panel" id="toolReturnCartPanel" style="border:2px solid var(--primary,#2563eb);margin:14px 0">
         <h3 style="margin-top:0">🛒 Warenkorb – Rückgabe</h3>
-        <p class="muted">Offene Werkzeugausgaben aus der Tabelle hinzufügen und anschließend gemeinsam zurückbuchen. Dieser Warenkorb ist unabhängig vom Lager-Warenkorb.</p>
+        <p class="muted">Offene Werkzeugausgaben aus der Tabelle oder direkt per QR-Code am Werkzeug hinzufügen und anschließend gemeinsam zurückbuchen.</p>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0"><button type="button" id="scanToolReturnQrBtn" class="secondary">▦ QR-Code scannen und Rückgabe auswählen</button></div>
         <div class="table-wrap"><table><thead><tr><th>Mitarbeiter / Werkzeug</th><th>Offen</th><th>Rückgabe</th><th>Aktion</th></tr></thead><tbody id="toolReturnCartBody"></tbody></table></div>
         <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap"><button type="button" id="checkoutToolReturnCartBtn">↩ Ausgabe/Rückgabe buchen</button><button type="button" id="clearToolReturnCartBtn" class="secondary">Warenkorb leeren</button></div>
         <div id="toolReturnCartMsg" class="msg hidden"></div>
@@ -760,14 +761,64 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     }
   }
 
+  function findToolByQrCode(rawCode) {
+    const code = String(rawCode || '').trim().toLocaleLowerCase('de-DE');
+    if (!code) return null;
+    return tools.find(t => String(t.code || '').trim().toLocaleLowerCase('de-DE') === code) || null;
+  }
+
+  function scanToolForIssue() {
+    scanToolQr(code => {
+      const tool = findToolByQrCode(code);
+      if (!tool) { showToolMessage(`Kein Werkzeug mit der QR-Nummer „${code}“ gefunden.`, true); return; }
+      if (tool.active === false) { showToolMessage(`„${tool.name}“ ist deaktiviert und kann nicht ausgegeben werden.`, true); return; }
+      $('toolProduct').value = tool.id;
+      $('toolQuantity').value = '1';
+      addToolToCart();
+    });
+  }
+
+  function scanToolForReturn() {
+    scanToolQr(code => {
+      const tool = findToolByQrCode(code);
+      if (!tool) { showToolReturnCartMessage(`Kein Werkzeug mit der QR-Nummer „${code}“ gefunden.`, true); return; }
+      const openIssues = toolIssues.filter(issue =>
+        String(issue.tool_id) === String(tool.id) &&
+        Number(issue.quantity || 0) > Number(issue.returned_quantity || 0)
+      );
+      if (!openIssues.length) {
+        showToolReturnCartMessage(`Für „${tool.name}“ wurde keine offene Ausgabe gefunden.`, true);
+        return;
+      }
+      let selected = openIssues[0];
+      if (openIssues.length > 1) {
+        const choices = openIssues.map((issue, index) =>
+          `${index + 1}: ${issue.employee_name || 'Unbekannt'} – ${issue.site_name || 'Keine Baustelle'} (offen: ${Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)})`
+        ).join('\\n');
+        const answer = prompt(`Für „${tool.name}“ gibt es mehrere offene Ausgaben. Bitte Nummer der passenden Ausgabe eingeben:\\n${choices}`, '1');
+        if (answer === null) return;
+        const choice = Number(answer);
+        if (!Number.isInteger(choice) || choice < 1 || choice > openIssues.length) {
+          showToolReturnCartMessage('Ungültige Auswahl. Bitte QR-Code erneut scannen.', true);
+          return;
+        }
+        selected = openIssues[choice - 1];
+      }
+      addToolReturnToCart(selected.id);
+      showToolReturnCartMessage(`QR-Code erkannt: „${tool.name}“ für ${selected.employee_name || 'Mitarbeiter'} wurde zur Rückgabe hinzugefügt.`);
+    });
+  }
+
   async function createTool() {
     const name = $('newToolName').value.trim();
     const unit = $('newToolUnit').value.trim() || 'Stück';
-    const quantity = Number($('newToolQty').value);
-    const code = $('newToolCode').value.trim() || null;
+    const quantity = 1;
+    const code = $('newToolCode').value.trim();
     const msg = $('toolCreateMsg');
     msg.classList.remove('hidden'); msg.classList.remove('error');
-    if (!name || !Number.isFinite(quantity) || quantity < 0) { msg.textContent = 'Bitte Namen und einen gültigen Bestand eingeben.'; msg.classList.add('error'); return; }
+    if (!name || !code) { msg.textContent = 'Bitte Werkzeugname und eine eindeutige Serien-/QR-Nummer eingeben.'; msg.classList.add('error'); return; }
+    const normalizedCode = code.toLocaleLowerCase('de-DE');
+    if (tools.some(t => String(t.code || '').trim().toLocaleLowerCase('de-DE') === normalizedCode)) { msg.textContent = 'Diese Serien-/QR-Nummer ist bereits einem Werkzeug zugeordnet.'; msg.classList.add('error'); return; }
     const { error } = await client.from('tools').insert({name, unit, quantity, code}).select().single();
     if (error) { msg.textContent = 'Fehler: ' + error.message; msg.classList.add('error'); return; }
     $('newToolName').value = ''; $('newToolCode').value = ''; $('newToolQty').value = '1';
@@ -890,7 +941,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <td>${escapeHtml(tool?.name || 'Unbekannter Artikel')}<br><span class="muted">${escapeHtml(tool?.code || '')}</span>
           <div class="field" style="margin:8px 0 0"><label>Ausgabefoto (Pflicht)</label><input type="file" accept="image/*" capture="environment" data-cart-photo="${index}" style="max-width:240px"><span class="muted">${item.photoFile ? 'Foto ausgewählt: ' + escapeHtml(item.photoFile.name || 'Kamerafoto') : 'Bitte Foto aufnehmen oder auswählen.'}</span></div>
         </td>
-        <td><input type="number" min="0.01" step="0.01" value="${item.quantity}" data-cart-qty="${index}" style="max-width:110px"></td>
+        <td><b>1 Stück</b></td>
         <td><button type="button" class="secondary smallbtn" data-cart-remove="${index}">Entfernen</button></td>
       </tr>`;
     }).join('') || '<tr><td colspan="3" class="muted">Der Warenkorb ist leer. Wähle oben einen Artikel und füge ihn hinzu.</td></tr>';
@@ -898,16 +949,18 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   function addToolToCart() {
     const toolId = $('toolProduct').value;
-    const quantity = Number($('toolQuantity').value);
-    if (!toolId || !(quantity > 0)) {
-      showToolMessage('Bitte Artikel und eine gültige Menge auswählen.', true); return;
-    }
-    const existing = toolCart.find(x => x.toolId === toolId);
-    if (existing) existing.quantity += quantity;
-    else toolCart.push({ toolId, quantity, photoFile: null });
+    if (!toolId) { showToolMessage('Bitte ein Werkzeug auswählen.', true); return; }
+    const tool = tools.find(t => String(t.id) === String(toolId));
+    if (!tool) { showToolMessage('Werkzeug wurde nicht gefunden. Bitte Liste aktualisieren.', true); return; }
+    if (!String(tool.code || '').trim()) { showToolMessage('Dieses Werkzeug hat noch keine eindeutige Serien-/QR-Nummer. Bitte zuerst eine Nummer hinterlegen.', true); return; }
+    if (tool.active === false) { showToolMessage('Dieses Werkzeug ist deaktiviert.', true); return; }
+    const alreadyIssued = toolIssues.some(issue => String(issue.tool_id) === String(toolId) && Number(issue.quantity || 0) > Number(issue.returned_quantity || 0));
+    if (alreadyIssued) { showToolMessage(`„${tool.name}“ ist bereits ausgegeben und kann erst nach der Rückgabe erneut vergeben werden.`, true); return; }
+    if (toolCart.some(x => String(x.toolId) === String(toolId))) { showToolMessage(`„${tool.name}“ befindet sich bereits im Ausgabe-Warenkorb.`, true); return; }
+    toolCart.push({ toolId, quantity: 1, photoFile: null });
     $('toolQuantity').value = '1';
     renderToolCart();
-    showToolMessage('Artikel wurde zum Warenkorb hinzugefügt.');
+    showToolMessage('Einzelwerkzeug wurde zum Ausgabe-Warenkorb hinzugefügt.');
   }
 
   async function checkoutToolCart() {
@@ -921,19 +974,29 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       showToolMessage('Der Warenkorb ist leer. Bitte zuerst Artikel hinzufügen.', true); return;
     }
     for (const item of toolCart) {
-      if (!(Number(item.quantity) > 0)) {
-        showToolMessage('Bitte bei allen Artikeln eine gültige Menge eintragen.', true); return;
+      if (Number(item.quantity) !== 1) {
+        showToolMessage('Jedes Werkzeug darf ausschließlich einmal pro Ausgabe gebucht werden.', true); return;
       }
       if (!item.photoFile) {
         showToolMessage('Bitte für jedes Werkzeug ein Ausgabefoto aufnehmen oder auswählen.', true); return;
       }
       const tool = tools.find(t => t.id === item.toolId);
-      if (!tool || Number(item.quantity) > Number(tool.quantity || 0)) {
-        showToolMessage(`Nicht genügend Bestand für „${tool?.name || 'Artikel'}“. Verfügbar: ${tool?.quantity ?? 0}.`, true); return;
+      if (!tool || !String(tool.code || '').trim() || tool.active === false) {
+        showToolMessage(`„${tool?.name || 'Werkzeug'}“ hat keine gültige Serien-/QR-Nummer oder ist deaktiviert.`, true); return;
+      }
+      if (Number(tool.quantity || 0) < 1) {
+        showToolMessage(`„${tool.name}“ ist nicht verfügbar.`, true); return;
       }
     }
+    // Direkt vor dem Buchen nochmals serverseitig prüfen; der Datenbank-Index schützt zusätzlich vor parallelen Ausgaben.
+    const toolIds = toolCart.map(x => x.toolId);
+    const { data: latestOpenIssues, error: openCheckError } = await client.from('tool_issues')
+      .select('tool_id,quantity,returned_quantity').in('tool_id', toolIds);
+    if (openCheckError) { showToolMessage('Offene Ausgaben konnten nicht geprüft werden: ' + openCheckError.message, true); return; }
+    const busyTool = tools.find(t => toolIds.some(id => String(id) === String(t.id)) && (latestOpenIssues || []).some(issue => String(issue.tool_id) === String(t.id) && Number(issue.quantity || 0) > Number(issue.returned_quantity || 0)));
+    if (busyTool) { showToolMessage(`„${busyTool.name}“ ist inzwischen bereits ausgegeben. Bitte Warenkorb aktualisieren.`, true); await refreshAll(); return; }
 
-    const items = toolCart.map(x => ({ tool_id: x.toolId, quantity: Number(x.quantity) }));
+    const items = toolCart.map(x => ({ tool_id: x.toolId, quantity: 1 }));
     const cartForPhotos = toolCart.map(x => ({ ...x }));
     const checkoutStartedAt = new Date(Date.now() - 120000).toISOString();
     $('checkoutToolCartBtn').disabled = true;
@@ -1010,7 +1073,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       return `<tr><td>${escapeHtml(issue?.tools?.name || issue?.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(issue?.employee_name || '')} · ${escapeHtml(issue?.site_name || '')}</span>
         ${photoPreview(issue?.issue_photo_url, 'So wurde es ausgegeben')}
         <div class="field" style="margin:8px 0 0"><label>Rücknahmefoto (optional)</label><input type="file" accept="image/*" capture="environment" data-tool-return-photo="${index}" style="max-width:240px"><span class="muted">${item.photoFile ? 'Foto ausgewählt: ' + escapeHtml(item.photoFile.name || 'Kamerafoto') : 'Bei Bedarf Zustand bei Rückgabe fotografieren.'}</span></div>
-      </td><td>${outstanding.toLocaleString('de-DE')}</td><td><input type="number" min="0.01" step="0.01" max="${outstanding}" value="${item.quantity}" data-tool-return-qty="${index}" style="max-width:110px"></td><td><button type="button" class="secondary smallbtn" data-tool-return-remove="${index}">Entfernen</button></td></tr>`;
+      </td><td>${outstanding.toLocaleString('de-DE')}</td><td><b>${outstanding.toLocaleString('de-DE')} Stück</b></td><td><button type="button" class="secondary smallbtn" data-tool-return-remove="${index}">Entfernen</button></td></tr>`;
     }).join('') || '<tr><td colspan="4" class="muted">Der Werkzeug-Rückgabe-Warenkorb ist leer. Füge unten bei einer offenen Ausgabe ein Werkzeug hinzu.</td></tr>';
   }
 
@@ -1022,7 +1085,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       for (const item of toolReturnCart) {
         const issue = toolIssues.find(x => String(x.id) === String(item.issueId));
         const outstanding = issue ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)) : 0;
-        if (!issue || !(Number(item.quantity) > 0) || Number(item.quantity) > outstanding) {
+        if (!issue || !(Number(item.quantity) > 0) || Number(item.quantity) !== outstanding) {
           showToolReturnCartMessage('Bitte prüfe die Rückgabemengen. Eine Menge ist ungültig oder bereits zurückgebucht.', true);
           return;
         }
@@ -2420,6 +2483,8 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('toolReturnModeBtn').onclick = () => setToolBookingMode('return');
   setToolBookingMode('issue');
   $('addToolCartBtn').onclick = addToolToCart;
+  $('scanToolIssueQrBtn').onclick = scanToolForIssue;
+  $('scanToolReturnQrBtn').onclick = scanToolForReturn;
   $('checkoutToolCartBtn').onclick = checkoutToolCart;
   $('clearToolCartBtn').onclick = () => { toolCart = []; renderToolCart(); showToolMessage('Werkzeug-Ausgabe-Warenkorb geleert.'); };
   $('toolCartBody').addEventListener('input', e => {
