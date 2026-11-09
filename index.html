@@ -222,7 +222,6 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
     <section id="homeView" class="panel">
       <h2>Was möchtest du öffnen?</h2>
-      <p class="muted">Wähle einen Bereich. Lager und Werkzeugausgabe werden getrennt angezeigt.</p>
       <div class="module-tiles">
         <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
           <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
@@ -230,10 +229,17 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <button id="openToolsBtn" class="module-tile tools-tile" type="button">
           <span class="module-icon">🧰</span><strong>Werkzeuge</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
         </button>
+        <button id="openVehiclesBtn" class="module-tile" type="button">
+          <span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
+        </button>
         <button id="openFleetInventoryBtn" class="module-tile" type="button">
           <span class="module-icon">📋</span><strong>Inventur</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
         </button>
       </div>
+    </section>
+
+    <section id="vehiclesView" class="hidden">
+      <div class="row view-heading"><button id="vehiclesHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>🚐 Fahrzeuge</h2></div>
     </section>
 
     <section id="fleetInventoryView" class="hidden">
@@ -2618,13 +2624,16 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   function showMainView(view) {
     if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
-    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('fleetInventoryView');
+    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView');
     if (view === 'inventory') show('inventoryView');
     else if (view === 'tools') show('toolView');
+    else if (view === 'vehicles') show('vehiclesView');
     else if (view === 'fleet') show('fleetInventoryView');
     else show('homeView');
     window.scrollTo(0, 0);
   }
+  $('openVehiclesBtn').onclick = () => showMainView('vehicles');
+  $('vehiclesHomeBtn').onclick = () => showMainView('home');
   $('openFleetInventoryBtn').onclick = async () => { showMainView('fleet'); await loadFleetInventory(); };
   $('fleetHomeBtn').onclick = () => showMainView('home');
   $('fleetCreateTab').onclick = () => { show('fleetCreatePanel'); hide('fleetCountPanel'); $('fleetCreateTab').classList.remove('secondary'); $('fleetCountTab').classList.add('secondary'); };
