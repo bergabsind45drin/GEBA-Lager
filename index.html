@@ -64,6 +64,11 @@ th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 .login{max-width:420px;margin:8vh auto}
 h2{margin:0 0 12px;font-size:1.15rem}
 .smallbtn{padding:7px 10px;border-radius:9px;font-size:.85rem}
+.order-btn{background:#fff1b8;color:#705300;border:1px solid #e5ca68;white-space:normal}
+.export-actions{min-width:0;gap:8px;flex-wrap:nowrap}
+.export-actions button{flex:1;min-width:0;padding-left:10px;padding-right:10px}
+@media(max-width:700px){.export-actions{grid-column:1/-1}.export-actions button{font-size:.84rem;padding:10px 8px}}
+body.dark-mode .order-btn{background:#5b4a18!important;color:#fff0b3!important;border-color:#8b7228!important}
 .modal{position:fixed;inset:0;background:#10231dcc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
 .modal-card{background:white;border-radius:18px;padding:20px;width:min(500px,100%);max-height:90vh;overflow:auto}
 footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
@@ -301,7 +306,10 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <button id="openStockCartBtn" class="secondary">🛒 Warenkorb <span id="stockCartCount">0</span></button>
       <button id="addBtn" class="secondary">＋ Artikel anlegen</button>
       <button id="importBtn" class="secondary">⇧ CSV importieren</button>
-      <button id="exportBtn" class="secondary">⇩ CSV exportieren</button>
+      <div class="row export-actions">
+        <button id="exportBtn" class="secondary">⇩ CSV exportieren</button>
+        <button id="orderListBtn" class="order-btn" type="button">🛒 Bestellliste</button>
+      </div>
     </div>
 
     <section class="panel">
@@ -2114,6 +2122,101 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     );
   }
 
+  function manufacturerFromSku(sku) {
+    const value = String(sku || '').trim();
+    // Herstellerkennung steht am Anfang der Artikelnummer, z. B. "RKK - 234234" oder "WÜ 2342342-".
+    const match = value.match(/^([A-Za-zÄÖÜäöüß]+)\s*(?=[\s\-–—]*\d)/u);
+    return match ? match[1].toLocaleUpperCase('de-DE') : 'Ohne Herstellerkennung';
+  }
+
+  function buildOrderGroups() {
+    const groups = new Map();
+    products.forEach(product => {
+      const current = Number(product.quantity || 0);
+      const minimum = Number(product.min_quantity || 0);
+      const toOrder = Math.max(0, minimum - current);
+      if (!(toOrder > 0)) return;
+      const manufacturer = manufacturerFromSku(product.sku);
+      if (!groups.has(manufacturer)) groups.set(manufacturer, []);
+      groups.get(manufacturer).push({
+        sku: String(product.sku || 'Keine Artikelnummer'),
+        name: String(product.name || 'Unbenannter Artikel'),
+        quantity: toOrder,
+        unit: String(product.unit || 'Stück')
+      });
+    });
+    return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'de'))
+      .map(([manufacturer, items]) => [manufacturer, items.sort((a, b) => a.sku.localeCompare(b.sku, 'de'))]);
+  }
+
+  function orderTextForGroup(manufacturer, items) {
+    const lines = [
+      `Betreff: Bestellung – ${manufacturer}`,
+      '',
+      'Guten Tag,',
+      '',
+      'bitte liefern Sie uns folgende Artikel:',
+      '',
+      'Artikelnummer | Artikel | Bestellmenge'
+    ];
+    items.forEach(item => lines.push(`${item.sku} | ${item.name} | ${Number(item.quantity).toLocaleString('de-DE')} ${item.unit}`));
+    lines.push('', 'Vielen Dank und freundliche Grüße');
+    return lines.join('\n');
+  }
+
+  function openOrderList() {
+    const groups = buildOrderGroups();
+    if (!groups.length) {
+      openModal('Bestellliste nach Hersteller', '<p>Aktuell müssen keine Artikel nachbestellt werden. Alle Bestände liegen auf oder über dem hinterlegten Mindestbestand.</p>');
+      return;
+    }
+    const allText = groups.map(([manufacturer, items]) => orderTextForGroup(manufacturer, items)).join('\n\n' + '='.repeat(42) + '\n\n');
+    const groupHtml = groups.map(([manufacturer, items], index) => `
+      <section class="panel" style="margin:12px 0;padding:12px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <strong>${escapeHtml(manufacturer)}</strong>
+          <button type="button" class="secondary smallbtn" data-copy-order="${index}">Text kopieren</button>
+        </div>
+        <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
+        <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th></tr></thead><tbody>
+          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(Number(item.quantity).toLocaleString('de-DE'))} ${escapeHtml(item.unit)}</td></tr>`).join('')}
+        </tbody></table></div>
+        <textarea readonly rows="${Math.min(12, items.length + 7)}" style="width:100%;margin-top:8px;border:1px solid #c8dced;border-radius:10px;padding:10px;font:inherit">${escapeHtml(orderTextForGroup(manufacturer, items))}</textarea>
+      </section>`).join('');
+    openModal('Bestellliste nach Hersteller', `
+      <p class="muted">Die Bestellmenge ergibt sich aus Mindestbestand minus aktuellem Bestand. Jeder Hersteller erhält einen eigenen Bestelltext.</p>
+      <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltexte kopieren</button>
+      ${groupHtml}
+    `);
+    $('copyAllOrdersBtn').onclick = () => copyOrderText(allText, 'Alle Bestelltexte');
+    $('modalContent').querySelectorAll('[data-copy-order]').forEach(button => {
+      button.onclick = () => {
+        const index = Number(button.dataset.copyOrder);
+        const [manufacturer, items] = groups[index];
+        copyOrderText(orderTextForGroup(manufacturer, items), manufacturer);
+      };
+    });
+  }
+
+  async function copyOrderText(text, label) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const helper = document.createElement('textarea');
+        helper.value = text;
+        helper.style.position = 'fixed'; helper.style.opacity = '0';
+        document.body.appendChild(helper); helper.select();
+        const copied = document.execCommand('copy');
+        helper.remove();
+        if (!copied) throw new Error('Kopieren nicht verfügbar');
+      }
+      notify(`${label} wurde in die Zwischenablage kopiert.`);
+    } catch (error) {
+      notify('Kopieren war nicht möglich. Markiere den Bestelltext und kopiere ihn manuell.', true);
+    }
+  }
+
   function parseCsv(text) {
     let rows = [], row = [], cell = '', quoted = false;
 
@@ -2594,6 +2697,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   $('checkoutStockCartBtn').onclick = checkoutStockCart;
   $('clearStockCartBtn').onclick = () => { stockCart = []; renderStockCart(); showStockCartMessage('Warenkorb geleert.'); };
   $('exportBtn').onclick = exportCsv;
+  $('orderListBtn').onclick = openOrderList;
   $('importBtn').onclick = () => $('csvFile').click();
 
   $('csvFile').onchange = e => {
