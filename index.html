@@ -2150,16 +2150,23 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   function orderTextForGroup(manufacturer, items) {
+    const formatted = items.map(item => ({
+      quantity: `${Number(item.quantity).toLocaleString('de-DE')} ${item.unit}`,
+      sku: item.sku,
+      name: item.name
+    }));
+    // Einheitliche Spaltenbreiten sorgen dafür, dass alle Trennstriche exakt untereinander stehen.
+    const quantityWidth = Math.max(...formatted.map(item => item.quantity.length));
+    const skuWidth = Math.max(...formatted.map(item => item.sku.length));
     const lines = [
       `Betreff: Bestellung – ${manufacturer}`,
       '',
       'Guten Tag,',
       '',
-      'bitte liefern Sie uns folgende Artikel:',
-      '',
-      'Artikelnummer | Artikel | Bestellmenge'
+      'hiermit bestellen wir folgende Artikel bei Ihnen:',
+      ''
     ];
-    items.forEach(item => lines.push(`${item.sku} | ${item.name} | ${Number(item.quantity).toLocaleString('de-DE')} ${item.unit}`));
+    formatted.forEach(item => lines.push(`${item.quantity.padEnd(quantityWidth)} | ${item.sku.padEnd(skuWidth)} | ${item.name}`));
     lines.push('', 'Vielen Dank und freundliche Grüße');
     return lines.join('\n');
   }
@@ -2181,7 +2188,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th></tr></thead><tbody>
           ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(Number(item.quantity).toLocaleString('de-DE'))} ${escapeHtml(item.unit)}</td></tr>`).join('')}
         </tbody></table></div>
-        <textarea readonly rows="${Math.min(12, items.length + 7)}" style="width:100%;margin-top:8px;border:1px solid #c8dced;border-radius:10px;padding:10px;font:inherit">${escapeHtml(orderTextForGroup(manufacturer, items))}</textarea>
+        <textarea readonly rows="${Math.min(12, items.length + 7)}" style="width:100%;margin-top:8px;border:1px solid #c8dced;border-radius:10px;padding:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;line-height:1.55;white-space:pre;overflow-x:auto">${escapeHtml(orderTextForGroup(manufacturer, items))}</textarea>
       </section>`).join('');
     openModal('Bestellliste nach Hersteller', `
       <p class="muted">Die Bestellmenge ergibt sich aus Mindestbestand minus aktuellem Bestand. Jeder Hersteller erhält einen eigenen Bestelltext.</p>
