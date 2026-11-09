@@ -412,7 +412,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
         </form>
       </section>
       <section class="panel">
-        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3>
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3><button type="button" id="openMaintenanceYearBtn" class="secondary smallbtn">📅 Jahresübersicht / Export</button>
         <div id="maintenanceClearAllBar" style="display:none;margin:12px 0;padding:12px;border:1px solid #a52c2c;border-radius:12px;background:#fff1f1">
           <button type="button" id="maintenanceClearAllBtn" class="danger" style="width:100%;font-size:15px;padding:14px">🗑 GESAMTE WARTUNGSLISTE LÖSCHEN</button>
           <div style="font-size:12px;margin-top:6px;color:#7b2424">Löscht alle Wartungskunden auf einmal. Einzelne Kundeneinträge bleiben separat löschbar.</div>
@@ -421,18 +421,18 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
         <p id="maintenanceDueHint" class="muted" style="margin:6px 0 12px">Fälligkeiten für den aktuellen Monat.</p>
         <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
       </section>
-      <section class="panel" id="maintenanceYearPanel">
+      <section class="panel hidden" id="maintenanceYearPanel" style="margin-top:12px">
         <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <h3>Jahrestabelle</h3>
+          <h3>Jahresübersicht</h3>
           <div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
             <label for="maintenanceYearSelect">Jahr</label>
             <select id="maintenanceYearSelect" class="smallbtn"></select>
-            <button type="button" id="maintenanceYearSaveBtn">Änderungen speichern</button>
+            <button type="button" id="maintenanceYearNewBtn" class="secondary smallbtn">＋ Neues Jahr</button>
             <button type="button" id="maintenanceYearExportBtn" class="secondary smallbtn">↓ Jahrestabelle exportieren</button>
+            <button type="button" id="closeMaintenanceYearBtn" class="secondary smallbtn">Schließen</button>
           </div>
         </div>
-        <p class="muted" style="margin:6px 0 12px">Eine eigene Tabelle pro Jahr. Die Spalte „Erledigt am“ ist hier bewusst nicht enthalten. Änderungen werden je Jahr gespeichert.</p>
-        <div id="maintenanceYearTableWrap" class="table-wrap"><p class="muted">Jahrestabelle wird geladen …</p></div>
+        <p class="muted" style="margin:6px 0 0">Es wird dieselbe Wartungskundenliste verwendet – keine zweite Kundenliste. Wähle ein Jahr und exportiere die vorhandene Liste dafür als Excel-Datei.</p>
       </section>
     </section>
 
@@ -3282,9 +3282,11 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('maintenanceImportBtn').onclick = () => $('maintenanceImportFile').click();
   $('maintenanceImportFile').addEventListener('change', e => importMaintenanceExcel(e.target.files?.[0]));
   $('maintenanceExportBtn').onclick = exportMaintenanceExcel;
-  $('maintenanceYearSelect').addEventListener('change',renderMaintenanceYearTable);
-  $('maintenanceYearSaveBtn').onclick = saveMaintenanceYearTable;
+  $('maintenanceYearSelect').addEventListener('change',()=>{});
   $('maintenanceYearExportBtn').onclick = exportMaintenanceYearExcel;
+  $('openMaintenanceYearBtn').onclick = () => { initMaintenanceYearSelect(); $('maintenanceYearPanel').classList.toggle('hidden'); };
+  $('closeMaintenanceYearBtn').onclick = () => $('maintenanceYearPanel').classList.add('hidden');
+  $('maintenanceYearNewBtn').onclick = () => { const sel=$('maintenanceYearSelect'); const next=Math.max(new Date().getFullYear(), Number(sel.value)||0)+1; if(![...sel.options].some(o=>Number(o.value)===next)){const o=document.createElement('option');o.value=String(next);o.textContent=String(next);sel.appendChild(o);} sel.value=String(next); notify('Jahr '+next+' ausgewählt. Beim Export wird dieselbe Wartungskundenliste verwendet.'); };
   $('maintenanceClearAllBtn').onclick = clearMaintenanceList;
   $('maintenanceForm').addEventListener('submit', saveMaintenanceCustomer);
   $('maintenanceCancelBtn').onclick = resetMaintenanceForm;
