@@ -1721,7 +1721,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     if (clearListButton) {
       // Sichtbarkeit unabhängig von der CSS-hidden-Klasse steuern.
       clearListButton.classList.remove('hidden');
-      clearListButton.style.display = (enabled && currentRole === 'office') ? 'inline-flex' : 'none';
+      clearListButton.style.display = enabled ? 'inline-flex' : 'none';
     }
     if ($('maintenanceTableWrap')) {
       // Die Wartungsliste sofort an den neuen Editor-Status anpassen.
@@ -3034,7 +3034,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   }
 
   async function clearMaintenanceList(){
-    if(!editorMode || currentRole!=='office')return notify('Die Wartungsliste kann nur im Büro-Editor-Modus vollständig gelöscht werden.',true);
+    if(!editorMode)return notify('Die Wartungsliste kann nur im Editor-Modus vollständig gelöscht werden.',true);
     if(!maintenanceRows.length)return notify('Die Wartungsliste ist bereits leer.');
     const count=maintenanceRows.length;
     if(!confirm('ACHTUNG: Wirklich ALLE '+count+' Wartungseinträge dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden.'))return;
@@ -3149,7 +3149,7 @@ Bestehende Preise bleiben erhalten, da keine Preis-Spalte angegeben ist.`))retur
   $('openMaintenanceBtn').onclick = async () => {
     showMainView('maintenance');
     const clearListButton = $('maintenanceClearListBtn');
-    if (clearListButton) clearListButton.style.display = (editorMode && currentRole === 'office') ? 'inline-flex' : 'none';
+    if (clearListButton) clearListButton.style.display = editorMode ? 'inline-flex' : 'none';
     await loadMaintenanceCustomers();
   };
   $('maintenanceHomeBtn').onclick = () => showMainView('home');
