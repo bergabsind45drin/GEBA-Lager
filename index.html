@@ -2145,26 +2145,26 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         unit: String(product.unit || 'Stück')
       });
     });
-    return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'de'))
-      .map(([manufacturer, items]) => [manufacturer, items.sort((a, b) => a.sku.localeCompare(b.sku, 'de'))]);
+    return [...groups.entries()].sort((a, b) => {
+      // Artikel ohne Herstellerkennung immer ganz ans Ende setzen.
+      if (a[0] === 'Ohne Herstellerkennung') return 1;
+      if (b[0] === 'Ohne Herstellerkennung') return -1;
+      return a[0].localeCompare(b[0], 'de');
+    }).map(([manufacturer, items]) => [manufacturer, items.sort((a, b) => a.sku.localeCompare(b.sku, 'de'))]);
   }
 
   function orderTextForGroup(manufacturer, items) {
-    const formatted = items.map(item => ({
-      quantity: `${Number(item.quantity).toLocaleString('de-DE')} ${item.unit}`,
-      sku: item.sku,
-      name: item.name
-    }));
-    // Einheitliche Spaltenbreiten sorgen dafür, dass alle Trennstriche exakt untereinander stehen.
-    const quantityWidth = Math.max(...formatted.map(item => item.quantity.length));
-    const skuWidth = Math.max(...formatted.map(item => item.sku.length));
+    // Tab-getrennte Spalten lassen sich beim Einfügen z. B. in Tabellenprogramme sauber aufteilen.
     const lines = [
       'Guten Tag,',
       '',
       'hiermit bestellen wir folgende Artikel bei Ihnen:',
-      ''
+      '',
+      'Bestellmenge\tArtikelnummer\tArtikel'
     ];
-    formatted.forEach(item => lines.push(`${item.quantity.padEnd(quantityWidth)} | ${item.sku.padEnd(skuWidth)} | ${item.name}`));
+    items.forEach(item => {
+      lines.push(`${Number(item.quantity).toLocaleString('de-DE')} ${item.unit}\t${item.sku}\t${item.name}`);
+    });
     lines.push('', 'Vielen Dank und freundliche Grüße');
     return lines.join('\n');
   }
@@ -2180,17 +2180,16 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       <section class="panel" style="margin:12px 0;padding:12px">
         <div class="row" style="justify-content:space-between;align-items:center">
           <strong>${escapeHtml(manufacturer)}</strong>
-          <button type="button" class="secondary smallbtn" data-copy-order="${index}">Text kopieren</button>
+          <button type="button" class="secondary smallbtn" data-copy-order="${index}">Tabelle kopieren</button>
         </div>
         <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
         <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th></tr></thead><tbody>
           ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(Number(item.quantity).toLocaleString('de-DE'))} ${escapeHtml(item.unit)}</td></tr>`).join('')}
         </tbody></table></div>
-        <textarea readonly rows="${Math.min(12, items.length + 7)}" style="width:100%;margin-top:8px;border:1px solid #c8dced;border-radius:10px;padding:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;line-height:1.55;white-space:pre;overflow-x:auto">${escapeHtml(orderTextForGroup(manufacturer, items))}</textarea>
       </section>`).join('');
     openModal('Bestellliste nach Hersteller', `
       <p class="muted">Die Bestellmenge ergibt sich aus Mindestbestand minus aktuellem Bestand. Jeder Hersteller erhält einen eigenen Bestelltext.</p>
-      <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltexte kopieren</button>
+      <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
       ${groupHtml}
     `);
     $('copyAllOrdersBtn').onclick = () => copyOrderText(allText, 'Alle Bestelltexte');
