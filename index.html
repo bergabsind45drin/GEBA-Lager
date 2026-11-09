@@ -3073,6 +3073,22 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     if(value instanceof Date && !isNaN(value))return `${String(value.getDate()).padStart(2,'0')}.${String(value.getMonth()+1).padStart(2,'0')}.${value.getFullYear()}`;
     return String(value).trim();
   }
+  // A und B werden aus dem unveränderten Zellwert gelesen, nicht aus der
+  // Excel-Anzeigeformatierung. So wird die W-Nr. niemals als Datum formatiert.
+  function maintenanceExcelRawCellText(sheet,rowIndex,columnIndex){
+    const address=XLSX.utils.encode_cell({r:rowIndex,c:columnIndex});
+    const cell=sheet[address];
+    if(!cell||cell.v==null)return '';
+    // Bei normalen Zahlenformaten auch angezeigte Nachkommastellen behalten
+    // (z. B. 1.10). Datumsformate werden ausdrücklich NICHT angewendet.
+    if(typeof cell.v==='number'&&cell.z&&window.XLSX?.SSF){
+      const isDateFormat=typeof XLSX.SSF.is_date==='function'&&XLSX.SSF.is_date(cell.z);
+      if(!isDateFormat){
+        try{return String(XLSX.SSF.format(cell.z,cell.v));}catch(_){}
+      }
+    }
+    return String(cell.v);
+  }
   function maintenanceNormalizeYesNo(value){
     const v=String(value??'').trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');
     if(!v)return null;
@@ -3090,7 +3106,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     if(!window.XLSX)return notify('Excel-Import ist nicht verfügbar. Bitte Seite neu laden.',true);
     try{
       const buffer=await file.arrayBuffer();
-      const book=XLSX.read(buffer,{type:'array',cellDates:false});
+      const book=XLSX.read(buffer,{type:'array',cellDates:false,raw:true});
       const sheetName=book.SheetNames.find(n=>/wartung jahresplan 2026/i.test(n))||book.SheetNames.find(n=>/wartung jahresplan/i.test(n))||book.SheetNames[0];
       const sheet=book.Sheets[sheetName];
       const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
@@ -3101,8 +3117,8 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       for(let r=0;r<matrix.length;r++){
         const row=matrix[r]||[];
         if(isHeader(row))continue;
-        const binder=maintenanceExcelText(row[0]);       // A: Hefter
-        const number=maintenanceExcelText(row[1]);       // B: W-Nr.
+        const binder=maintenanceExcelRawCellText(sheet,r,0); // A: Hefter exakt aus Zellwert
+        const number=maintenanceExcelRawCellText(sheet,r,1); // B: W-Nr. exakt als Text/Zellwert, niemals Datum
         const customer=maintenanceExcelText(row[2]);     // C: Wartungskunde
         if(!customer)continue;
         const lastBilling=maintenanceExcelDate(row[3]);  // D: Letzte Abrechnung
