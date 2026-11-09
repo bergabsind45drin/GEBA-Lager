@@ -3094,8 +3094,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       const sheetName=book.SheetNames.find(n=>/wartung jahresplan 2026/i.test(n))||book.SheetNames.find(n=>/wartung jahresplan/i.test(n))||book.SheetNames[0];
       const sheet=book.Sheets[sheetName];
       const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
-      // Feste Zuordnung: A-C sowie P-T. D-O werden vollständig ignoriert,
-      // da Fälligkeiten/Monatsangaben anschließend direkt in der App gepflegt werden.
+      // Feste Zuordnung der Importdatei: A-H entsprechen direkt den Wartungsfeldern.
       // Die Zuordnung erfolgt unabhängig von den Überschriften der Excel-Datei.
       const isHeader=row=>String(row?.[0]??'').trim().toLowerCase()==='hefter'||String(row?.[2]??'').trim().toLowerCase()==='wartungskunde';
       const imported=[];
@@ -3106,16 +3105,14 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
         const number=maintenanceExcelText(row[1]);       // B: W-Nr.
         const customer=maintenanceExcelText(row[2]);     // C: Wartungskunde
         if(!customer)continue;
-        // D-O: Fälligkeit und Monats-Spalten werden bewusst nicht importiert.
-        // Neue Kunden erhalten eine leere Fälligkeit; bestehende Fälligkeiten bleiben beim Aktualisieren erhalten.
-        const lastBilling=maintenanceExcelDate(row[15]); // P: Letzte Abrechnung
-        const contract=maintenanceNormalizeYesNo(row[16]); // Q: Wartungsvertrag
-        const completed=maintenanceExcelDate(row[17]);   // R: Erledigt am
-        const adjustment=maintenanceExcelText(row[18]);  // S: Preisanpassung
-        const accepted=maintenanceNormalizeYesNo(row[19]); // T: Preisanpassung akzeptiert
+        const lastBilling=maintenanceExcelDate(row[3]);  // D: Letzte Abrechnung
+        const contract=maintenanceNormalizeYesNo(row[4]); // E: Wartungsvertrag
+        const completed=maintenanceExcelDate(row[5]);    // F: Erledigt am
+        const adjustment=maintenanceExcelText(row[6]);   // G: Preisanpassung
+        const accepted=maintenanceNormalizeYesNo(row[7]); // H: Preisanpassung akzeptiert
         imported.push({binder,maintenance_number:number,customer,last_billing:lastBilling,contract,completed_at:completed,price_adjustment:adjustment,adjustment_accepted:accepted});
       }
-      if(!imported.length)throw new Error('In den Spalten A-D und P-T wurden keine Wartungskunden gefunden.');
+      if(!imported.length)throw new Error('In den Spalten A-H wurden keine Wartungskunden gefunden.');
       const {data:existing,error:loadError}=await client.from('maintenance_customers').select('id,binder,maintenance_number,customer,price,months');
       if(loadError)throw loadError;
       const existingByIdentity=new Map((existing||[]).map(x=>[maintenanceIdentity(x),x]));
@@ -3123,8 +3120,8 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       const rows=[...deduped.values()].map(row=>{const old=existingByIdentity.get(maintenanceIdentity(row));return {...row,months:old?.months??{due_date:null},price:old?.price??null,...(old?{id:old.id}:{})};});
       if(!confirm(`${rows.length} Wartungskunden aus „${sheetName}“ importieren?
 
-Die Spalten werden exakt so zugeordnet: A Hefter, B W-Nr., C Wartungskunde; D-O werden vollständig übersprungen (Fälligkeit bitte anschließend in der App eintragen); P Letzte Abrechnung, Q Wartungsvertrag, R Erledigt am, S Preisanpassung, T Preisanpassung akzeptiert.
-Bestehende Fälligkeiten und Preise bleiben bei vorhandenen Kunden erhalten. Neue Kunden erhalten zunächst keine Fälligkeit. Bestehende Preise bleiben erhalten, da keine Preis-Spalte angegeben ist.`))return;
+Die Spalten werden exakt so zugeordnet: A Hefter, B W-Nr., C Wartungskunde, D Letzte Abrechnung, E Wartungsvertrag, F Erledigt am, G Preisanpassung, H Preisanpassung akzeptiert.
+Die Fälligkeit und bestehende Preise bleiben bei vorhandenen Kunden erhalten. Neue Kunden erhalten zunächst keine Fälligkeit und keinen Preis, da dafür keine Spalte in der Importdatei angegeben ist.`))return;
       for(let i=0;i<rows.length;i+=100){const {error}=await client.from('maintenance_customers').upsert(rows.slice(i,i+100));if(error)throw error;}
       await loadMaintenanceCustomers();
       notify(`${rows.length} Wartungskunden wurden importiert bzw. aktualisiert.`);
