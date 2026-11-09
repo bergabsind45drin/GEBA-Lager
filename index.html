@@ -391,6 +391,24 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
   #maintenanceTable tbody tr.maintenance-overdue td { color:#ef4444 !important; }
   body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td { color:#f87171 !important; }
 }
+
+/* Terminfarben dauerhaft sichtbar – unabhängig von Hover und Endgerät */
+#maintenanceTable tbody tr.maintenance-due td,
+#maintenanceTable tbody tr.maintenance-due:hover td {
+  color:#eab308 !important; font-weight:800 !important; background:transparent !important;
+}
+#maintenanceTable tbody tr.maintenance-overdue td,
+#maintenanceTable tbody tr.maintenance-overdue:hover td {
+  color:#ef4444 !important; font-weight:800 !important; background:transparent !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-due td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td { color:#facc15 !important; background:transparent !important; }
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td { color:#f87171 !important; background:transparent !important; }
+.maintenance-year-tab { display:inline-flex !important; align-items:center; gap:7px !important; }
+.maintenance-tab-count { display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; padding:0 5px; border-radius:999px; color:#fff !important; font-size:11px; line-height:1; font-weight:900; }
+.maintenance-tab-yellow { background:#d6a000 !important; }
+.maintenance-tab-red { background:#dc2626 !important; }
 </style>
 </head>
 <body>
@@ -493,7 +511,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
         <div id="maintenanceClearAllBar" style="display:none;margin:12px 0;padding:12px;border:1px solid #a52c2c;border-radius:12px;background:#fff1f1">
           <button type="button" id="maintenanceClearAllBtn" class="danger" style="width:100%;font-size:15px;padding:14px">🗑 GESAMTE WARTUNGSLISTE LÖSCHEN</button>
           <div style="font-size:12px;margin-top:6px;color:#7b2424">Löscht alle Wartungskunden auf einmal. Einzelne Kundeneinträge bleiben separat löschbar.</div>
-        </div><div class="row" style="align-items:center;flex-wrap:wrap"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="due">Nur fällige</option></select><label for="maintenanceSort">Sortierung</label><select id="maintenanceSort" class="smallbtn"><option value="number-asc">Hefter / W-Nr. aufsteigend</option><option value="number-desc">Hefter / W-Nr. absteigend</option><option value="customer-asc">Wartungskunde A–Z</option><option value="customer-desc">Wartungskunde Z–A</option><option value="price-asc">Preis aufsteigend</option><option value="price-desc">Preis absteigend</option><option value="binder-asc">Hefter aufsteigend</option><option value="binder-desc">Hefter absteigend</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div>
+        </div><div class="row" style="align-items:center;flex-wrap:wrap"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="open">Noch offen</option><option value="done">Nur erledigte</option><option value="due">Nur diesen Monat fällige</option></select><label for="maintenanceSort">Sortierung</label><select id="maintenanceSort" class="smallbtn"><option value="number-asc">Hefter / W-Nr. aufsteigend</option><option value="number-desc">Hefter / W-Nr. absteigend</option><option value="customer-asc">Wartungskunde A–Z</option><option value="customer-desc">Wartungskunde Z–A</option><option value="price-asc">Preis aufsteigend</option><option value="price-desc">Preis absteigend</option><option value="binder-asc">Hefter aufsteigend</option><option value="binder-desc">Hefter absteigend</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div>
         <div class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0 12px"><label for="maintenanceSearch">Suche</label><input id="maintenanceSearch" type="search" placeholder="Hefter, W-Nr. oder Wartungskunde suchen …" style="flex:1;min-width:220px"><button type="button" id="maintenanceImportBtn" class="secondary smallbtn">↑ Excel importieren</button><input type="file" id="maintenanceImportFile" accept=".xlsx,.xls,.csv" class="hidden"><button type="button" id="maintenanceExportBtn" class="secondary smallbtn">↓ Excel exportieren</button><span class="muted" style="font-size:12px">Import aktualisiert vorhandene Kunden und ergänzt neue Einträge.</span></div>
         <p id="maintenanceDueHint" class="muted" style="margin:6px 0 12px">Fälligkeiten für den aktuellen Monat.</p>
         <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
@@ -3054,15 +3072,27 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
   function maintenanceIsCompletedForActiveYear(r){
     return !!maintenanceCompletedForYear(r, maintenanceActiveYear);
   }
-  function maintenanceDueStatus(r){
-    const due=maintenanceDueDateValue(r); if(!due || maintenanceIsCompletedForActiveYear(r))return '';
+  function maintenanceDueStatusForYear(r, year){
+    const due=maintenanceDueDateValue(r); if(!due || maintenanceCompletedForYear(r, String(year)))return '';
     const now=new Date();
-    const dueYear=due.year || Number(maintenanceActiveYear) || now.getFullYear();
+    const dueYear=due.year || Number(year) || now.getFullYear();
     const dueDate=new Date(dueYear,due.month-1,due.day);
     const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
     if(dueDate < monthStart)return 'maintenance-overdue';
     if(dueYear===now.getFullYear() && due.month===now.getMonth()+1)return 'maintenance-due';
     return '';
+  }
+  function maintenanceDueStatus(r){
+    return maintenanceDueStatusForYear(r, maintenanceActiveYear);
+  }
+  function maintenanceYearCounts(year){
+    let overdue=0,due=0;
+    maintenanceRows.forEach(r=>{
+      const status=maintenanceDueStatusForYear(r,year);
+      if(status==='maintenance-overdue')overdue++;
+      else if(status==='maintenance-due')due++;
+    });
+    return {overdue,due};
   }
   function maintenanceDueThisMonth(r){
     return maintenanceDueStatus(r)==='maintenance-due';
@@ -3080,10 +3110,14 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
   }
   function renderMaintenanceCustomers(){
     updateMaintenanceBadge();
-    const onlyDue=$('maintenanceDueFilter').value==='due';
+    const filterMode=$('maintenanceDueFilter').value||'all';
     const sortMode=$('maintenanceSort')?.value||'number-asc';
     const search=String($('maintenanceSearch')?.value||'').trim().toLocaleLowerCase('de');
-    const visibleRows=maintenanceRows.filter(r=>(!onlyDue||maintenanceDueThisMonth(r))&&(!search||[r.binder,r.maintenance_number,r.customer,r.contract,r.completed_at,r.price_adjustment,r.months?.notes].some(v=>String(v??'').toLocaleLowerCase('de').includes(search)))).sort((a,b)=>{
+    const visibleRows=maintenanceRows.filter(r=>{
+      const completed=maintenanceIsCompletedForActiveYear(r);
+      const statusMatches=filterMode==='open'?!completed:filterMode==='done'?completed:filterMode==='due'?maintenanceDueThisMonth(r):true;
+      return statusMatches&&(!search||[r.binder,r.maintenance_number,r.customer,r.contract,maintenanceCompletedForYear(r),r.price_adjustment,r.months?.notes].some(v=>String(v??'').toLocaleLowerCase('de').includes(search)));
+    }).sort((a,b)=>{
       if(sortMode==='customer-asc'||sortMode==='customer-desc'){
         const result=String(a.customer||'').localeCompare(String(b.customer||''),'de',{sensitivity:'base'});
         return sortMode==='customer-desc'?-result:result;
@@ -3103,7 +3137,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
       return sortMode==='number-desc'?-result:result;
     });
     $('maintenanceCount').textContent=visibleRows.length+' von '+maintenanceRows.length+' Kunden';
-    if(!visibleRows.length){$('maintenanceTableWrap').innerHTML='<p class="muted">'+(onlyDue?'Im aktuellen Monat ist kein Kunde fällig.':'Noch keine Wartungskunden angelegt.')+'</p>';return;}
+    if(!visibleRows.length){const emptyText=filterMode==='due'?'Im aktuellen Monat ist kein Kunde fällig.':filterMode==='open'?'Es gibt keine offenen Wartungen.':filterMode==='done'?'In diesem Jahr ist noch keine Wartung als erledigt markiert.':'Noch keine passenden Wartungskunden gefunden.';$('maintenanceTableWrap').innerHTML='<p class="muted">'+emptyText+'</p>';return;}
     const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Erledigt am','Preisanpassung','Notizen','Aktionen'];
     const labels=headers;
     $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
@@ -3300,7 +3334,12 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     if(!years.has(maintenanceActiveYear))maintenanceActiveYear=String(new Date().getFullYear());
     select.value=maintenanceActiveYear;
     const tabs=$('maintenanceYearTabs');
-    if(tabs)tabs.innerHTML=sorted.map(y=>'<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'">'+escapeHtml(y)+'</button>').join('');
+    if(tabs)tabs.innerHTML=sorted.map(y=>{
+      const counts=maintenanceYearCounts(y);
+      const badges=(counts.due?'<span class="maintenance-tab-count maintenance-tab-yellow" title="'+counts.due+' im aktuellen Monat fällig">'+counts.due+'</span>':'')+
+        (counts.overdue?'<span class="maintenance-tab-count maintenance-tab-red" title="'+counts.overdue+' überfällig">'+counts.overdue+'</span>':'');
+      return '<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'"><span>'+escapeHtml(y)+'</span>'+badges+'</button>';
+    }).join('');
   }
   function renderMaintenanceYearTable(){
     initMaintenanceYearSelect();
@@ -3383,6 +3422,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('maintenanceDueFilter').onchange = renderMaintenanceCustomers;
   $('maintenanceSort').onchange = renderMaintenanceCustomers;
   $('maintenanceSearch').addEventListener('input',renderMaintenanceCustomers);
+    $('maintenanceDueFilter').addEventListener('change',renderMaintenanceCustomers);
   $('maintenanceImportBtn').onclick = () => $('maintenanceImportFile').click();
   $('maintenanceImportFile').addEventListener('change', e => importMaintenanceExcel(e.target.files?.[0]));
   $('maintenanceExportBtn').onclick = exportMaintenanceExcel;
