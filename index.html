@@ -186,28 +186,41 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
 
 
-/* Wartungsübersicht */
+/* Wartungsübersicht – gesamte Tabelle ohne horizontales Scrollen */
 #maintenanceView{width:calc(100vw - 36px);max-width:none;position:relative;left:50%;transform:translateX(-50%)}
-#maintenanceTableWrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
-#maintenanceTable{min-width:1900px;border-collapse:collapse}
+#maintenanceTableWrap{width:100%;max-width:100%;overflow-x:hidden!important;overflow-y:visible}
+#maintenanceTable{width:100%!important;min-width:0!important;max-width:100%;table-layout:fixed;border-collapse:collapse}
 #maintenanceTable thead{position:static!important;width:auto!important;height:auto!important;clip:auto!important;overflow:visible!important}
-#maintenanceTable tbody{display:table-row-group!important;width:auto!important}
+#maintenanceTable tbody{display:table-row-group!important;width:100%!important}
 #maintenanceTable tbody tr{display:table-row!important;background:transparent!important;border:0!important;border-radius:0!important;padding:0!important;box-shadow:none!important}
-#maintenanceTable tbody td{display:table-cell!important;padding:9px 8px!important;border-bottom:1px solid #e0ebf5!important}
+#maintenanceTable tbody td{display:table-cell!important;padding:4px 3px!important;border-bottom:1px solid #e0ebf5!important;vertical-align:middle;overflow-wrap:anywhere;word-break:break-word}
 #maintenanceTable tbody td::before{display:none!important}
-#maintenanceTable th,#maintenanceTable td{white-space:nowrap;padding:9px 8px}
-#maintenanceTable input,#maintenanceTable select{min-width:105px;width:100%;padding:8px;border:1px solid #c8dced;border-radius:8px;background:#fff;color:#17211d}
-#maintenanceTable .month-cell input{min-width:90px;width:110px}
+#maintenanceTable th,#maintenanceTable td{white-space:normal!important;padding:4px 3px!important;font-size:10px;line-height:1.2;text-align:center}
+#maintenanceTable th{font-size:9px;font-weight:800;hyphens:auto;overflow-wrap:anywhere}
+#maintenanceTable th:nth-child(1){width:4%} #maintenanceTable th:nth-child(2){width:4%} #maintenanceTable th:nth-child(3){width:12%}
+#maintenanceTable th:nth-child(n+4):nth-child(-n+15){width:2.7%}
+#maintenanceTable th:nth-child(16){width:5%} #maintenanceTable th:nth-child(17){width:5%} #maintenanceTable th:nth-child(18){width:5%} #maintenanceTable th:nth-child(19){width:5%} #maintenanceTable th:nth-child(20){width:7%} #maintenanceTable th:nth-child(21){width:6%} #maintenanceTable th:nth-child(22){width:9%}
+#maintenanceTable input,#maintenanceTable select{min-width:0!important;width:100%;padding:3px;border:1px solid #c8dced;border-radius:4px;background:#fff;color:#17211d;font-size:10px}
+#maintenanceTable .month-cell{font-size:9px}
 #maintenanceTable tr.maintenance-due td{color:#e0a800!important;font-weight:700}
 #maintenanceTable tr.maintenance-due td .contract-yes,#maintenanceTable tr.maintenance-due td .contract-no,#maintenanceTable tr.maintenance-due td .accepted-yes,#maintenanceTable tr.maintenance-due td .accepted-no{font-weight:800}
+#maintenanceTable td .row{display:flex;flex-direction:column;gap:2px;align-items:stretch}
+#maintenanceTable td button.smallbtn{font-size:9px!important;padding:3px 2px!important;min-width:0;white-space:normal}
 .maintenance-alert-badge{position:absolute;top:9px;right:9px;min-width:25px;height:25px;padding:0 7px;border-radius:20px;background:#dc2626;color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 7px #0003}
 .maintenance-alert-badge.hidden{display:none}
-.contract-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800;border-radius:8px;padding:7px 10px}
-.contract-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800;border-radius:8px;padding:7px 10px}
+.contract-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800;border-radius:4px;padding:3px 4px}
+.contract-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800;border-radius:4px;padding:3px 4px}
 .accepted-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800}
 .accepted-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800}
 body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{background:#111827!important;color:#e5e7eb!important;border-color:#4b5563!important}
-@media(max-width:700px){#maintenanceView{width:calc(100vw - 20px)}#maintenanceTable{min-width:1900px}}
+@media(max-width:700px){
+ #maintenanceView{width:calc(100vw - 16px)}
+ #maintenanceTable th,#maintenanceTable td{font-size:7px;padding:2px 1px!important;line-height:1.12}
+ #maintenanceTable th{font-size:7px}
+ #maintenanceTable td button.smallbtn{font-size:7px!important;padding:2px 1px!important}
+ #maintenanceTable td .row{gap:1px}
+ .contract-yes,.contract-no{padding:2px!important;border-radius:2px}
+}
 </style>
 </head>
 <body>
