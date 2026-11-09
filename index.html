@@ -3090,7 +3090,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     if(!window.XLSX)return notify('Excel-Import ist nicht verfügbar. Bitte Seite neu laden.',true);
     try{
       const buffer=await file.arrayBuffer();
-      const book=XLSX.read(buffer,{type:'array',cellDates:true});
+      const book=XLSX.read(buffer,{type:'array',cellDates:false});
       const sheetName=book.SheetNames.find(n=>/wartung jahresplan 2026/i.test(n))||book.SheetNames.find(n=>/wartung jahresplan/i.test(n))||book.SheetNames[0];
       const sheet=book.Sheets[sheetName];
       const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
