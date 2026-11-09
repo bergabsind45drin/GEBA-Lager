@@ -197,6 +197,10 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 #maintenanceTable th,#maintenanceTable td{white-space:nowrap;padding:9px 8px}
 #maintenanceTable input,#maintenanceTable select{min-width:105px;width:100%;padding:8px;border:1px solid #c8dced;border-radius:8px;background:#fff;color:#17211d}
 #maintenanceTable .month-cell input{min-width:90px;width:110px}
+#maintenanceTable tr.maintenance-due td{color:#e0a800!important;font-weight:700}
+#maintenanceTable tr.maintenance-due td .contract-yes,#maintenanceTable tr.maintenance-due td .contract-no,#maintenanceTable tr.maintenance-due td .accepted-yes,#maintenanceTable tr.maintenance-due td .accepted-no{font-weight:800}
+.maintenance-alert-badge{position:absolute;top:9px;right:9px;min-width:25px;height:25px;padding:0 7px;border-radius:20px;background:#dc2626;color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 7px #0003}
+.maintenance-alert-badge.hidden{display:none}
 .contract-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800;border-radius:8px;padding:7px 10px}
 .contract-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800;border-radius:8px;padding:7px 10px}
 .accepted-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800}
@@ -253,7 +257,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
         <button id="openMaintenanceBtn" class="module-tile" type="button">
-          <span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
+          <span class="maintenance-alert-badge hidden" id="maintenanceAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
         </button>
         <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
           <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
@@ -302,7 +306,8 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
         </form>
       </section>
       <section class="panel">
-        <div class="row" style="justify-content:space-between"><h3>Wartungskunden</h3><span id="maintenanceCount" class="pill">0 Kunden</span></div>
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3><div class="row" style="align-items:center"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="due">Nur fällige</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div></div>
+        <p id="maintenanceDueHint" class="muted" style="margin:6px 0 12px">Fälligkeiten für den aktuellen Monat.</p>
         <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
       </section>
     </section>
@@ -651,7 +656,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     const isMonteur = currentRole === 'monteur';
     $('userEmail').textContent = isMonteur ? (currentUser.user_metadata?.name || 'Monteur') : (currentUser.email || '');
     ['qrToolsBtn','editorModeBtn'].forEach(id => $(id).classList.toggle('hidden', isMonteur));
-    $('openMaintenanceBtn').classList.toggle('hidden', isMonteur);
+    $('openMaintenanceBtn').classList.toggle('hidden', false);
     $('openInventoryBtn').classList.toggle('hidden', isMonteur);
     $('openToolsBtn').classList.toggle('hidden', isMonteur);
     $('openFleetInventoryBtn').classList.toggle('hidden', false);
@@ -1615,6 +1620,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     renderTools();
     if (typeof renderVehicleRecords === 'function' && $('vehicleRecordsList')) renderVehicleRecords();
     renderToolBookings();
+    if ($('maintenanceTableWrap')) renderMaintenanceCustomers();
     notify(enabled ? 'Editor-Modus aktiviert.' : 'Editor-Modus beendet.');
   }
 
@@ -2816,18 +2822,36 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     ['Juli','jul'],['Aug.','aug'],['Sept.','sep'],['Okt.','oct'],['Nov.','nov'],['Dez.','dec']
   ];
   let maintenanceRows = [];
+  function maintenanceDueThisMonth(r){
+    const monthKey=maintenanceMonths[new Date().getMonth()][1];
+    const due=String((r.months||{})[monthKey]||'').trim()!=='';
+    if(!due)return false;
+    if(!r.completed_at)return true;
+    const done=new Date(r.completed_at+'T00:00:00');
+    const now=new Date();
+    return !(done.getFullYear()===now.getFullYear() && done.getMonth()===now.getMonth());
+  }
+  function updateMaintenanceBadge(){
+    const count=maintenanceRows.filter(maintenanceDueThisMonth).length;
+    const badge=$('maintenanceAlertBadge');
+    badge.textContent=String(count); badge.classList.toggle('hidden',count===0);
+    $('maintenanceDueHint').textContent=count+' Wartung'+(count===1?' ist':'en sind')+' im '+new Date().toLocaleDateString('de-DE',{month:'long'})+' fällig.';
+  }
   async function loadMaintenanceCustomers() {
     const {data,error} = await client.from('maintenance_customers').select('*').order('customer',{ascending:true});
     if(error){ $('maintenanceTableWrap').innerHTML = '<p class="msg error">Wartungsdaten konnten nicht geladen werden: '+escapeHtml(error.message)+'<br>Prüfe, ob das Wartungs-SQL in Supabase ausgeführt wurde.</p>'; return; }
     maintenanceRows = data || []; renderMaintenanceCustomers();
   }
   function renderMaintenanceCustomers(){
-    $('maintenanceCount').textContent = maintenanceRows.length+' Kunden';
-    if(!maintenanceRows.length){$('maintenanceTableWrap').innerHTML='<p class="muted">Noch keine Wartungskunden angelegt.</p>';return;}
+    updateMaintenanceBadge();
+    const onlyDue=$('maintenanceDueFilter').value==='due';
+    const visibleRows=maintenanceRows.filter(r=>!onlyDue||maintenanceDueThisMonth(r));
+    $('maintenanceCount').textContent=visibleRows.length+' von '+maintenanceRows.length+' Kunden';
+    if(!visibleRows.length){$('maintenanceTableWrap').innerHTML='<p class="muted">'+(onlyDue?'Im aktuellen Monat ist kein Kunde fällig.':'Noch keine Wartungskunden angelegt.')+'</p>';return;}
     const headers=['Hefter','W-Nr.','Wartungskunde',...maintenanceMonths.map(x=>x[0]),'Preis','Letzte Abrechnung','Wartungsvertrag','Erledigt am','Preisanpassung','Preisanpassung akzeptiert','Aktionen'];
-    $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+maintenanceRows.map(r=>{
-      const months=r.months||{};
-      return '<tr><td>'+escapeHtml(r.binder||'–')+'</td><td>'+escapeHtml(r.maintenance_number||'–')+'</td><td><strong>'+escapeHtml(r.customer)+'</strong></td>'+maintenanceMonths.map(([label,key])=>'<td class="month-cell">'+escapeHtml(months[key]||'–')+'</td>').join('')+
+    $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
+      const months=r.months||{}; const due=maintenanceDueThisMonth(r);
+      return '<tr class="'+(due?'maintenance-due':'')+'"><td>'+escapeHtml(r.binder||'–')+'</td><td>'+escapeHtml(r.maintenance_number||'–')+'</td><td><strong>'+escapeHtml(r.customer)+'</strong></td>'+maintenanceMonths.map(([label,key])=>'<td class="month-cell">'+escapeHtml(months[key]||'–')+'</td>').join('')+
       '<td>'+ (r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'}))+'</td><td>'+escapeHtml(r.last_billing||'–')+'</td><td><span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span></td><td>'+escapeHtml(r.completed_at||'–')+'</td><td>'+escapeHtml(r.price_adjustment||'–')+'</td><td><span class="'+(r.adjustment_accepted==='ja'?'accepted-yes':r.adjustment_accepted==='nein'?'accepted-no':'')+'">'+escapeHtml(r.adjustment_accepted||'–')+'</span></td><td><div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div></td></tr>';
     }).join('')+'</tbody></table>';
   }
@@ -2842,7 +2866,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     $('maintenanceFormTitle').textContent='Wartungskunde bearbeiten'; $('maintenanceSaveBtn').textContent='Änderungen speichern'; show('maintenanceCancelBtn'); $('maintenanceForm').scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function saveMaintenanceCustomer(event){
-    event.preventDefault(); if(currentRole!=='office')return notify('Keine Berechtigung.',true);
+    event.preventDefault(); if(!currentUser)return notify('Bitte anmelden.',true);
     const months={}; maintenanceMonths.forEach(([label,key])=>months[key]=$('maintenance'+key[0].toUpperCase()+key.slice(1)).value.trim());
     const id=$('maintenanceId').value;
     const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),last_billing:$('maintenanceLastBilling').value||null,contract:$('maintenanceContract').value||null,completed_at:$('maintenanceDone').value||null,price_adjustment:$('maintenanceAdjustment').value.trim(),adjustment_accepted:$('maintenanceAccepted').value||null};
@@ -2858,7 +2882,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   }
 
   function showMainView(view) {
-    if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
+    if (currentRole === 'monteur' && view !== 'fleet' && view !== 'maintenance') view = 'fleet';
     hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('maintenanceView');
     if (view === 'maintenance') show('maintenanceView');
     else if (view === 'inventory') show('inventoryView');
@@ -2871,6 +2895,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   $('openMaintenanceBtn').onclick = async () => { showMainView('maintenance'); await loadMaintenanceCustomers(); };
   $('maintenanceHomeBtn').onclick = () => showMainView('home');
   $('maintenanceRefreshBtn').onclick = loadMaintenanceCustomers;
+  $('maintenanceDueFilter').onchange = renderMaintenanceCustomers;
   $('maintenanceForm').addEventListener('submit', saveMaintenanceCustomer);
   $('maintenanceCancelBtn').onclick = resetMaintenanceForm;
   $('maintenanceTableWrap').addEventListener('click', e => {
