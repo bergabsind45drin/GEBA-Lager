@@ -2908,11 +2908,13 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     return String(value).trim();
   }
   function maintenanceNormalizeYesNo(value){
-    const v=String(value??'').trim().toLowerCase();
+    const v=String(value??'').trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');
     if(!v)return null;
-    if(['x','ja','yes','wahr','true','1'].includes(v))return 'ja';
-    if(['nein','no','falsch','false','0'].includes(v))return 'nein';
-    return v;
+    if(['x','✓','✔','☒','ja','j','yes','y','wahr','true','1','akzeptiert','angenommen'].includes(v))return 'ja';
+    if(['nein','n','no','falsch','false','0','abgelehnt','nicht akzeptiert','nicht angenommen'].includes(v))return 'nein';
+    // Nur die von der Datenbank erlaubten Werte speichern. Unbekannte Excel-Angaben
+    // bleiben leer, statt den gesamten Import an einer Check-Constraint scheitern zu lassen.
+    return null;
   }
   function maintenanceIdentity(row){
     return [row.binder,row.maintenance_number,row.customer].map(v=>String(v||'').trim().toLowerCase()).join('|');
