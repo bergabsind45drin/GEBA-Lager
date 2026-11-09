@@ -3073,21 +3073,19 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     if(value instanceof Date && !isNaN(value))return `${String(value.getDate()).padStart(2,'0')}.${String(value.getMonth()+1).padStart(2,'0')}.${value.getFullYear()}`;
     return String(value).trim();
   }
-  // A und B werden aus dem unveränderten Zellwert gelesen, nicht aus der
-  // Excel-Anzeigeformatierung. So wird die W-Nr. niemals als Datum formatiert.
+  // A und B werden anhand der sichtbaren Excel-Zellanzeige übernommen.
+  // Wichtig für B (W-Nr.): Excel speichert Einträge wie 1.1 unter Umständen
+  // intern als Datums-Seriennummer (z. B. 45047). cell.w enthält dann die
+  // formatierte Anzeige aus Excel und nicht diese interne Seriennummer.
   function maintenanceExcelRawCellText(sheet,rowIndex,columnIndex){
     const address=XLSX.utils.encode_cell({r:rowIndex,c:columnIndex});
     const cell=sheet[address];
     if(!cell||cell.v==null)return '';
-    // Bei normalen Zahlenformaten auch angezeigte Nachkommastellen behalten
-    // (z. B. 1.10). Datumsformate werden ausdrücklich NICHT angewendet.
+    if(cell.w!=null&&String(cell.w).trim()!=='')return String(cell.w).trim();
     if(typeof cell.v==='number'&&cell.z&&window.XLSX?.SSF){
-      const isDateFormat=typeof XLSX.SSF.is_date==='function'&&XLSX.SSF.is_date(cell.z);
-      if(!isDateFormat){
-        try{return String(XLSX.SSF.format(cell.z,cell.v));}catch(_){}
-      }
+      try{return String(XLSX.SSF.format(cell.z,cell.v)).trim();}catch(_){}
     }
-    return String(cell.v);
+    return String(cell.v).trim();
   }
   function maintenanceNormalizeYesNo(value){
     const v=String(value??'').trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');
