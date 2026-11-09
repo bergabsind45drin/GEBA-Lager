@@ -263,7 +263,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
           <div class="field"><label for="vrLastOil">Letzter Ölwechsel</label><input id="vrLastOil" type="date"></div>
           <div class="field"><label for="vrNextOil">Nächster Ölwechsel</label><input id="vrNextOil" type="date"></div>
           <div class="field"><label for="vrLastTires">Letzter Reifenwechsel</label><input id="vrLastTires" type="date"></div>
-          <div class="field"><label for="vrNewTires">Neue Reifen 2026</label><input id="vrNewTires" placeholder="z. B. 4 neue Sommerreifen / Datum"></div>
+          <div class="field"><label for="vrNewTires">Neue Reifen</label><input id="vrNewTires" placeholder="z. B. 4 neue Sommerreifen / Datum"></div>
           <div class="field"><label for="vrTireStorage">Lager Reifen</label><input id="vrTireStorage" placeholder="z. B. Reifenlager, Regal 2"></div>
           <div class="field"><label for="vrLastRepair">Letzte Reparatur</label><input id="vrLastRepair" type="date"></div>
           <div class="field wide"><label for="vrRepairDescription">Was wurde repariert?</label><input id="vrRepairDescription" placeholder="Beschreibung der Reparatur"></div>
@@ -2704,7 +2704,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   function renderVehicleRecords() {
     const headers = [['license_plate','Kennzeichen'],['name','Fahrzeug'],['chassis_number','Fahrgestellnr.'],['driver','Fahrzeugführer'],
       ['last_hu_au','Letzte HU/AU'],['next_hu_au','Nächste HU/AU'],['last_oil_change','Letzter Ölwechsel'],['next_oil_change','Nächster Ölwechsel'],
-      ['last_tire_change','Letzter Reifenwechsel'],['new_tires_2026','Neue Reifen 2026'],['tire_storage','Lager Reifen'],
+      ['last_tire_change','Letzter Reifenwechsel'],['new_tires_2026','Neue Reifen'],['tire_storage','Lager Reifen'],
       ['last_repair','Letzte Reparatur'],['repair_description','Was wurde repariert'],['notes','Bemerkungen'],['odometer_date','Ablesedatum'],['odometer_reading','Kilometerstand']];
     updateVehicleAlertBadge();
     if (!vehicleRecords.length) { $('vehicleRecordsList').innerHTML = '<p class="muted">Noch keine Firmenfahrzeuge angelegt. Nutze das Formular oben, um das erste Fahrzeug einzutragen.</p>'; return; }
