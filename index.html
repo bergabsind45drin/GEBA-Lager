@@ -530,6 +530,13 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   body.dark-mode #maintenanceTable tbody tr td::before { color:#aebdce !important; }
 }
 
+
+/* Wartungsregister: laufend aktualisierte Summen für gelbe und rote Zeilen */
+.maintenance-tab-count { display:inline-flex !important; align-items:center; justify-content:center; min-width:21px !important; height:21px !important; padding:0 6px !important; border-radius:999px !important; color:#fff !important; font-size:12px !important; line-height:1 !important; font-weight:900 !important; vertical-align:middle; }
+.maintenance-tab-yellow { background:#d6a000 !important; color:#fff !important; }
+.maintenance-tab-red { background:#dc2626 !important; color:#fff !important; }
+#openMaintenanceYearBtn { display:inline-flex !important; align-items:center; justify-content:center; flex-wrap:wrap; gap:7px !important; }
+
 </style>
 </head>
 <body>
@@ -3182,19 +3189,20 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   function maintenanceYearBackupDone(year){
     return maintenanceRows.length>0 && maintenanceRows.every(r=>!!maintenanceYearRecord(r,year)?.backup_exported_at);
   }
-  function maintenanceDueDateValue(r){
-    const raw=String((r.months||{}).due_date||r.due_date||'').trim();
+  function maintenanceDueDateValue(r, year=maintenanceActiveYear){
+    const yearRecord=maintenanceYearRecord(r,year)||{};
+    const raw=String(yearRecord.due_date||(r.months||{}).due_date||r.due_date||'').trim();
     const m=raw.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
     if(!m)return null;
-    const day=Number(m[1]),month=Number(m[2]),year=m[3]?Number(m[3]):null;
+    const day=Number(m[1]),month=Number(m[2]),dateYear=m[3]?Number(m[3]):null;
     if(month<1||month>12||day<1||day>31)return null;
-    return {day,month,year,text:`${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}${year?'.'+year:''}`};
+    return {day,month,year:dateYear,text:`${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}${dateYear?'.'+dateYear:''}`};
   }
   function maintenanceIsCompletedForActiveYear(r){
     return !!maintenanceCompletedForYear(r, maintenanceActiveYear);
   }
   function maintenanceDueStatusForYear(r, year){
-    const due=maintenanceDueDateValue(r); if(!due || maintenanceCompletedForYear(r, String(year)))return '';
+    const due=maintenanceDueDateValue(r, String(year)); if(!due || maintenanceCompletedForYear(r, String(year)))return '';
     const now=new Date();
     const dueYear=due.year || Number(year) || now.getFullYear();
     const dueDate=new Date(dueYear,due.month-1,due.day);
@@ -3231,6 +3239,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   }
   function renderMaintenanceCustomers(){
     updateMaintenanceBadge();
+    initMaintenanceYearSelect();
     const filterMode=$('maintenanceDueFilter').value||'all';
     const sortMode=$('maintenanceSort')?.value||'number-asc';
     const search=String($('maintenanceSearch')?.value||'').trim().toLocaleLowerCase('de');
@@ -3262,7 +3271,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Erledigt am','Preisanpassung','Notizen','Aktionen'];
     const labels=headers;
     $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
-      const dueStatus=maintenanceDueStatus(r); const dueDate=maintenanceDueDateValue(r);
+      const dueStatus=maintenanceDueStatusForYear(r, maintenanceActiveYear); const dueDate=maintenanceDueDateValue(r, maintenanceActiveYear);
       const rowStatus=maintenanceIsCompletedForActiveYear(r)?'maintenance-completed':dueStatus;
       const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),'<span class="'+(r.contract==='ja'?'contract-yes':'contract-no')+'">'+(r.contract==='ja'?'ja':'nein')+'</span>',escapeHtml(maintenanceDisplayDate(maintenanceCompletedForYear(r))||'–'),escapeHtml(r.price_adjustment||'–'),escapeHtml(r.months?.notes||'–'),'<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
       return '<tr class="'+rowStatus+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
@@ -3478,12 +3487,16 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     if(!years.has(maintenanceActiveYear))maintenanceActiveYear=String(new Date().getFullYear());
     select.value=maintenanceActiveYear;
     const tabs=$('maintenanceYearTabs');
+    const badgesFor=counts=>
+      '<span class="maintenance-tab-count maintenance-tab-yellow" title="'+counts.due+' Wartung(en) im aktuellen Monat fällig" aria-label="'+counts.due+' im aktuellen Monat fällig">'+counts.due+'</span>'+
+      '<span class="maintenance-tab-count maintenance-tab-red" title="'+counts.overdue+' überfällige Wartung(en)" aria-label="'+counts.overdue+' überfällig">'+counts.overdue+'</span>';
     if(tabs)tabs.innerHTML=sorted.map(y=>{
       const counts=maintenanceYearCounts(y);
-      const badges=(counts.due?'<span class="maintenance-tab-count maintenance-tab-yellow" title="'+counts.due+' im aktuellen Monat fällig">'+counts.due+'</span>':'')+
-        (counts.overdue?'<span class="maintenance-tab-count maintenance-tab-red" title="'+counts.overdue+' überfällig">'+counts.overdue+'</span>':'');
-      return '<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'"><span>'+escapeHtml(y)+'</span>'+badges+'</button>';
+      return '<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'"><span>'+escapeHtml(y)+'</span>'+badgesFor(counts)+'</button>';
     }).join('');
+    const activeCounts=maintenanceYearCounts(maintenanceActiveYear);
+    const openYearBtn=$('openMaintenanceYearBtn');
+    if(openYearBtn)openYearBtn.innerHTML='📅 Jahresübersicht / Export '+badgesFor(activeCounts);
   }
   function renderMaintenanceYearTable(){
     initMaintenanceYearSelect();
