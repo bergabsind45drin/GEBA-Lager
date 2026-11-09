@@ -7,7 +7,7 @@
 <title>GEBA-APP</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkga.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#17211d;background:#f3f8fc}
@@ -315,6 +315,17 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   }
 }
 
+/* Faellige Wartungen: normales Tabellendesign beibehalten, nur Schrift gelb */
+#maintenanceTable tbody tr.maintenance-due td,
+#maintenanceTable tbody tr.maintenance-due:hover td {
+  background: #ffffff !important;
+  color: #eab308 !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-due td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
+  background: #1f2937 !important;
+  color: #facc15 !important;
+}
 </style>
 </head>
 <body>
