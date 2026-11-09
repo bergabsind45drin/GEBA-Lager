@@ -3082,6 +3082,15 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     const cell=sheet[address];
     if(!cell||cell.v==null)return '';
     if(cell.w!=null&&String(cell.w).trim()!=='')return String(cell.w).trim();
+    // In der W-Nr.-Spalte wurden Werte wie 1.1 von Excel teils als Datum
+    // gespeichert (Seriennummer 44927 etc.). Für diese Spalte ist die
+    // gewünschte Anzeige ausdrücklich Tag.Monat, z. B. 1.1 oder 1.10.
+    if(columnIndex===1&&typeof cell.v==='number'&&cell.v>30000&&cell.v<60000&&window.XLSX?.SSF){
+      try{
+        const date=XLSX.SSF.parse_date_code(cell.v);
+        if(date&&date.d&&date.m)return `${date.d}.${date.m}`;
+      }catch(_){}
+    }
     if(typeof cell.v==='number'&&cell.z&&window.XLSX?.SSF){
       try{return String(XLSX.SSF.format(cell.z,cell.v)).trim();}catch(_){}
     }
