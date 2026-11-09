@@ -537,6 +537,15 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
 .maintenance-tab-red { background:#dc2626 !important; color:#fff !important; }
 #openMaintenanceYearBtn { display:inline-flex !important; align-items:center; justify-content:center; flex-wrap:wrap; gap:7px !important; }
 
+
+/* Statuszähler ausschließlich am Wartungs-Kachelbutton auf dem Homescreen */
+.maintenance-home-alerts{position:absolute;top:12px;right:14px;display:flex;gap:6px;align-items:center;z-index:2}
+.maintenance-home-alerts .maintenance-alert-badge{position:static!important;top:auto!important;right:auto!important;min-width:30px;height:30px;padding:0 8px;border-radius:999px;color:#fff!important;font-size:.95rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px #0003}
+.maintenance-home-alerts .maintenance-alert-yellow{background:#d6a000!important}
+.maintenance-home-alerts .maintenance-alert-red{background:#dc2626!important}
+.maintenance-home-alerts .maintenance-alert-badge.hidden{display:none!important}
+#openMaintenanceYearBtn{gap:0!important;}
+
 </style>
 </head>
 <body>
@@ -587,7 +596,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
         <button id="openMaintenanceBtn" class="module-tile" type="button">
-          <span class="maintenance-alert-badge hidden" id="maintenanceAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
+          <span class="maintenance-home-alerts" aria-live="polite"><span class="maintenance-alert-badge maintenance-alert-yellow hidden" id="maintenanceDueAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="maintenance-alert-badge maintenance-alert-red hidden" id="maintenanceOverdueAlertBadge" aria-label="Überfällige Wartungen">0</span></span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
         </button>
         <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
           <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
@@ -3227,10 +3236,14 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     return maintenanceDueStatus(r)==='maintenance-due';
   }
   function updateMaintenanceBadge(){
-    const count=maintenanceRows.filter(maintenanceDueThisMonth).length;
-    const badge=$('maintenanceAlertBadge');
-    badge.textContent=String(count); badge.classList.toggle('hidden',count===0);
-    $('maintenanceDueHint').textContent=count+' Wartung'+(count===1?' ist':'en sind')+' im '+new Date().toLocaleDateString('de-DE',{month:'long'})+' fällig.';
+    const currentYear=String(new Date().getFullYear());
+    const counts=maintenanceYearCounts(currentYear);
+    const dueBadge=$('maintenanceDueAlertBadge');
+    const overdueBadge=$('maintenanceOverdueAlertBadge');
+    if(dueBadge){dueBadge.textContent=String(counts.due);dueBadge.classList.toggle('hidden',counts.due===0);}
+    if(overdueBadge){overdueBadge.textContent=String(counts.overdue);overdueBadge.classList.toggle('hidden',counts.overdue===0);}
+    const hint=$('maintenanceDueHint');
+    if(hint)hint.textContent=counts.due+' Wartung'+(counts.due===1?' ist':'en sind')+' im '+new Date().toLocaleDateString('de-DE',{month:'long'})+' fällig; '+counts.overdue+' überfällig.';
   }
   async function loadMaintenanceCustomers() {
     const {data,error} = await client.from('maintenance_customers').select('*').order('customer',{ascending:true});
@@ -3494,9 +3507,9 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
       const counts=maintenanceYearCounts(y);
       return '<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'"><span>'+escapeHtml(y)+'</span>'+badgesFor(counts)+'</button>';
     }).join('');
-    const activeCounts=maintenanceYearCounts(maintenanceActiveYear);
     const openYearBtn=$('openMaintenanceYearBtn');
-    if(openYearBtn)openYearBtn.innerHTML='📅 Jahresübersicht / Export '+badgesFor(activeCounts);
+    if(openYearBtn)openYearBtn.textContent='📅 Jahresübersicht / Export';
+    updateMaintenanceBadge();
   }
   function renderMaintenanceYearTable(){
     initMaintenanceYearSelect();
