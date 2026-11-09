@@ -1014,7 +1014,11 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       await loadFleetForMonteur();
     } else {
       $('fleetCountTab').classList.remove('hidden');
-      showMainView('home'); await refreshAll();
+      showMainView('home');
+      await refreshAll();
+      // Wartungsdaten bereits beim App-Start laden, damit die Zähler
+      // auf der Wartungs-Kachel sofort nach Anmeldung/Neuladen erscheinen.
+      await loadMaintenanceCustomers();
     }
   }
 
