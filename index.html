@@ -2209,12 +2209,16 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   function orderTextForGroup(manufacturer, items) {
-    // Eine kompakte, kopierfreundliche Zeile je Artikel: Menge | Artikelnummer | Artikel.
+    // Bestelltext im gewünschten Briefformat mit einer Leerzeile zwischen den Artikeln.
+    const articleLines = items.map(item =>
+      `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} | ${item.sku} | ${item.name}`
+    );
     return [
-      manufacturer,
-      ...items.map(item =>
-        `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} | ${item.sku} | ${item.name}`
-      )
+      'Guten Tag,',
+      '',
+      'hiermit bestellen wir folgende Artikel bei Ihnen:',
+      '',
+      articleLines.join('\n\n')
     ].join('\n');
   }
 
