@@ -186,40 +186,40 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
 
 
-/* Wartungsübersicht – gesamte Tabelle ohne horizontales Scrollen */
-#maintenanceView{width:calc(100vw - 36px);max-width:none;position:relative;left:50%;transform:translateX(-50%)}
-#maintenanceTableWrap{width:100%;max-width:100%;overflow-x:hidden!important;overflow-y:visible}
-#maintenanceTable{width:100%!important;min-width:0!important;max-width:100%;table-layout:fixed;border-collapse:collapse}
+/* Wartungsübersicht – gut lesbare Tabelle ohne horizontales Scrollen */
+#maintenanceView{width:100%;max-width:1600px;margin:0 auto;padding:0 12px;box-sizing:border-box}
+#maintenanceTableWrap{width:100%;max-width:100%;overflow:visible!important}
+#maintenanceTable{width:100%!important;min-width:0!important;max-width:100%;table-layout:auto;border-collapse:separate;border-spacing:0;font-size:13px}
 #maintenanceTable thead{position:static!important;width:auto!important;height:auto!important;clip:auto!important;overflow:visible!important}
 #maintenanceTable tbody{display:table-row-group!important;width:100%!important}
 #maintenanceTable tbody tr{display:table-row!important;background:transparent!important;border:0!important;border-radius:0!important;padding:0!important;box-shadow:none!important}
-#maintenanceTable tbody td{display:table-cell!important;padding:4px 3px!important;border-bottom:1px solid #e0ebf5!important;vertical-align:middle;overflow-wrap:anywhere;word-break:break-word}
+#maintenanceTable tbody td{display:table-cell!important;padding:10px 8px!important;border-bottom:1px solid #d9e3ed!important;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}
 #maintenanceTable tbody td::before{display:none!important}
-#maintenanceTable th,#maintenanceTable td{white-space:normal!important;padding:4px 3px!important;font-size:10px;line-height:1.2;text-align:center}
-#maintenanceTable th{font-size:9px;font-weight:800;hyphens:auto;overflow-wrap:anywhere}
-#maintenanceTable th:nth-child(1){width:4%} #maintenanceTable th:nth-child(2){width:4%} #maintenanceTable th:nth-child(3){width:12%}
-#maintenanceTable th:nth-child(n+4):nth-child(-n+15){width:2.7%}
-#maintenanceTable th:nth-child(16){width:5%} #maintenanceTable th:nth-child(17){width:5%} #maintenanceTable th:nth-child(18){width:5%} #maintenanceTable th:nth-child(19){width:5%} #maintenanceTable th:nth-child(20){width:7%} #maintenanceTable th:nth-child(21){width:6%} #maintenanceTable th:nth-child(22){width:9%}
-#maintenanceTable input,#maintenanceTable select{min-width:0!important;width:100%;padding:3px;border:1px solid #c8dced;border-radius:4px;background:#fff;color:#17211d;font-size:10px}
-#maintenanceTable .month-cell{font-size:9px}
-#maintenanceTable tr.maintenance-due td{color:#e0a800!important;font-weight:700}
+#maintenanceTable th,#maintenanceTable td{white-space:normal!important;padding:10px 8px!important;font-size:12px;line-height:1.35;text-align:left}
+#maintenanceTable th{font-size:12px;font-weight:800;background:#edf3f8;color:#243447;vertical-align:bottom}
+#maintenanceTable th:nth-child(1){width:6%} #maintenanceTable th:nth-child(2){width:8%} #maintenanceTable th:nth-child(3){width:21%} #maintenanceTable th:nth-child(4){width:9%} #maintenanceTable th:nth-child(5){width:9%} #maintenanceTable th:nth-child(6){width:10%} #maintenanceTable th:nth-child(7){width:9%} #maintenanceTable th:nth-child(8){width:10%} #maintenanceTable th:nth-child(9){width:9%} #maintenanceTable th:nth-child(10){width:9%} #maintenanceTable th:nth-child(11){width:10%}
+#maintenanceTable tr:nth-child(even){background:#f8fafc!important}
+#maintenanceTable tr.maintenance-due td{color:#b77900!important;font-weight:700;background:#fff9e8!important}
 #maintenanceTable tr.maintenance-due td .contract-yes,#maintenanceTable tr.maintenance-due td .contract-no,#maintenanceTable tr.maintenance-due td .accepted-yes,#maintenanceTable tr.maintenance-due td .accepted-no{font-weight:800}
-#maintenanceTable td .row{display:flex;flex-direction:column;gap:2px;align-items:stretch}
-#maintenanceTable td button.smallbtn{font-size:9px!important;padding:3px 2px!important;min-width:0;white-space:normal}
+#maintenanceTable td .row{display:flex;flex-direction:row;gap:5px;align-items:center;flex-wrap:wrap}
+#maintenanceTable td button.smallbtn{font-size:11px!important;padding:6px 8px!important;min-width:0;white-space:nowrap}
 .maintenance-alert-badge{position:absolute;top:9px;right:9px;min-width:25px;height:25px;padding:0 7px;border-radius:20px;background:#dc2626;color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 7px #0003}
 .maintenance-alert-badge.hidden{display:none}
-.contract-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800;border-radius:4px;padding:3px 4px}
-.contract-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800;border-radius:4px;padding:3px 4px}
+.contract-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800;border-radius:4px;padding:4px 6px}
+.contract-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800;border-radius:4px;padding:4px 6px}
 .accepted-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800}
 .accepted-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800}
 body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{background:#111827!important;color:#e5e7eb!important;border-color:#4b5563!important}
-@media(max-width:700px){
- #maintenanceView{width:calc(100vw - 16px)}
- #maintenanceTable th,#maintenanceTable td{font-size:7px;padding:2px 1px!important;line-height:1.12}
- #maintenanceTable th{font-size:7px}
- #maintenanceTable td button.smallbtn{font-size:7px!important;padding:2px 1px!important}
- #maintenanceTable td .row{gap:1px}
- .contract-yes,.contract-no{padding:2px!important;border-radius:2px}
+@media(max-width:850px){
+ #maintenanceView{padding:0 6px}
+ #maintenanceTable,#maintenanceTable tbody,#maintenanceTable tr,#maintenanceTable td{display:block!important;width:100%!important}
+ #maintenanceTable thead{display:none!important}
+ #maintenanceTable tbody tr{margin:0 0 12px!important;padding:10px!important;border:1px solid #d9e3ed!important;border-radius:9px!important;background:#fff!important;box-shadow:0 1px 4px #0000000d!important}
+ #maintenanceTable tbody td{display:flex!important;justify-content:space-between;gap:14px;padding:6px 2px!important;text-align:right;border-bottom:1px solid #edf1f5!important;font-size:13px!important}
+ #maintenanceTable tbody td::before{content:attr(data-label);display:block!important;flex:0 0 42%;font-weight:700;text-align:left;color:#526273}
+ #maintenanceTable tbody td:last-child{border-bottom:0!important}
+ #maintenanceTable tr.maintenance-due td{background:#fff9e8!important}
+ #maintenanceTable td .row{justify-content:flex-end}
 }
 </style>
 </head>
@@ -303,19 +303,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
           <div class="field"><label for="maintenanceDone">Erledigt am</label><input id="maintenanceDone" type="date"></div>
           <div class="field"><label for="maintenanceAdjustment">Preisanpassung</label><input id="maintenanceAdjustment" placeholder="z. B. 5 % ab 01.01."></div>
           <div class="field"><label for="maintenanceAccepted">Preisanpassung akzeptiert</label><select id="maintenanceAccepted"><option value="">Bitte wählen</option><option value="ja">Ja</option><option value="nein">Nein</option></select></div>
-          <div class="wide"><h3 style="margin:8px 0">Fälligkeit je Monat</h3><p class="muted">Hier kannst du eintragen, was beziehungsweise wann im jeweiligen Monat fällig ist.</p></div>
-          <div class="field"><label for="maintenanceJan">Jan.</label><input id="maintenanceJan" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceFeb">Feb.</label><input id="maintenanceFeb" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceMar">März</label><input id="maintenanceMar" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceApr">Apr.</label><input id="maintenanceApr" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceMay">Mai</label><input id="maintenanceMay" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceJun">Juni</label><input id="maintenanceJun" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceJul">Juli</label><input id="maintenanceJul" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceAug">Aug.</label><input id="maintenanceAug" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceSep">Sept.</label><input id="maintenanceSep" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceOct">Okt.</label><input id="maintenanceOct" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceNov">Nov.</label><input id="maintenanceNov" placeholder="Fälligkeit / Leistung"></div>
-          <div class="field"><label for="maintenanceDec">Dez.</label><input id="maintenanceDec" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceDueDate">Fälligkeitsdatum</label><input id="maintenanceDueDate" type="text" inputmode="numeric" placeholder="z. B. 20.11" pattern="^([0-3]?\d)\.([01]?\d)(\.\d{4})?$" title="Bitte als TT.MM oder TT.MM.JJJJ eingeben, z. B. 20.11"></div>
           <div class="wide row"><button type="submit" id="maintenanceSaveBtn">＋ Wartungskunde speichern</button><button type="button" id="maintenanceCancelBtn" class="secondary hidden">Abbrechen</button></div>
         </form>
       </section>
@@ -2832,18 +2820,21 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     await loadVehicleRecords(); notify('Firmenfahrzeug und zugehörige Inventurdaten wurden gelöscht.');
   }
 
-  const maintenanceMonths = [
-    ['Jan.','jan'],['Feb.','feb'],['März','mar'],['Apr.','apr'],['Mai','may'],['Juni','jun'],
-    ['Juli','jul'],['Aug.','aug'],['Sept.','sep'],['Okt.','oct'],['Nov.','nov'],['Dez.','dec']
-  ];
   let maintenanceRows = [];
+  function maintenanceDueDateValue(r){
+    const raw=String((r.months||{}).due_date||r.due_date||'').trim();
+    const m=raw.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
+    if(!m)return null;
+    const day=Number(m[1]),month=Number(m[2]),year=m[3]?Number(m[3]):null;
+    if(month<1||month>12||day<1||day>31)return null;
+    return {day,month,year,text:`${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}${year?'.'+year:''}`};
+  }
   function maintenanceDueThisMonth(r){
-    const monthKey=maintenanceMonths[new Date().getMonth()][1];
-    const due=String((r.months||{})[monthKey]||'').trim()!=='';
-    if(!due)return false;
+    const due=maintenanceDueDateValue(r); if(!due)return false;
+    const now=new Date();
+    if(due.month!==now.getMonth()+1 || (due.year&&due.year!==now.getFullYear()))return false;
     if(!r.completed_at)return true;
     const done=new Date(r.completed_at+'T00:00:00');
-    const now=new Date();
     return !(done.getFullYear()===now.getFullYear() && done.getMonth()===now.getMonth());
   }
   function updateMaintenanceBadge(){
@@ -2863,11 +2854,12 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     const visibleRows=maintenanceRows.filter(r=>!onlyDue||maintenanceDueThisMonth(r));
     $('maintenanceCount').textContent=visibleRows.length+' von '+maintenanceRows.length+' Kunden';
     if(!visibleRows.length){$('maintenanceTableWrap').innerHTML='<p class="muted">'+(onlyDue?'Im aktuellen Monat ist kein Kunde fällig.':'Noch keine Wartungskunden angelegt.')+'</p>';return;}
-    const headers=['Hefter','W-Nr.','Wartungskunde',...maintenanceMonths.map(x=>x[0]),'Preis','Letzte Abrechnung','Wartungsvertrag','Erledigt am','Preisanpassung','Preisanpassung akzeptiert','Aktionen'];
+    const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Letzte Abrechnung','Wartungsvertrag','Erledigt am','Preisanpassung','Preisanpassung akzeptiert','Aktionen'];
+    const labels=headers;
     $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
-      const months=r.months||{}; const due=maintenanceDueThisMonth(r);
-      return '<tr class="'+(due?'maintenance-due':'')+'"><td>'+escapeHtml(r.binder||'–')+'</td><td>'+escapeHtml(r.maintenance_number||'–')+'</td><td><strong>'+escapeHtml(r.customer)+'</strong></td>'+maintenanceMonths.map(([label,key])=>'<td class="month-cell">'+escapeHtml(months[key]||'–')+'</td>').join('')+
-      '<td>'+ (r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'}))+'</td><td>'+escapeHtml(r.last_billing||'–')+'</td><td><span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span></td><td>'+escapeHtml(r.completed_at||'–')+'</td><td>'+escapeHtml(r.price_adjustment||'–')+'</td><td><span class="'+(r.adjustment_accepted==='ja'?'accepted-yes':r.adjustment_accepted==='nein'?'accepted-no':'')+'">'+escapeHtml(r.adjustment_accepted||'–')+'</span></td><td><div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div></td></tr>';
+      const due=maintenanceDueThisMonth(r); const dueDate=maintenanceDueDateValue(r);
+      const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),escapeHtml(r.last_billing||'–'),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(r.completed_at||'–'),escapeHtml(r.price_adjustment||'–'),'<span class="'+(r.adjustment_accepted==='ja'?'accepted-yes':r.adjustment_accepted==='nein'?'accepted-no':'')+'">'+escapeHtml(r.adjustment_accepted||'–')+'</span>','<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
+      return '<tr class="'+(due?'maintenance-due':'')+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
     }).join('')+'</tbody></table>';
   }
   function resetMaintenanceForm(){
@@ -2877,12 +2869,14 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     const r=maintenanceRows.find(x=>String(x.id)===String(id)); if(!r)return;
     $('maintenanceId').value=r.id; $('maintenanceBinder').value=r.binder||''; $('maintenanceNumber').value=r.maintenance_number||''; $('maintenanceCustomer').value=r.customer||'';
     $('maintenancePrice').value=r.price??''; $('maintenanceLastBilling').value=r.last_billing||''; $('maintenanceContract').value=r.contract||''; $('maintenanceDone').value=r.completed_at||''; $('maintenanceAdjustment').value=r.price_adjustment||''; $('maintenanceAccepted').value=r.adjustment_accepted||'';
-    const months=r.months||{}; maintenanceMonths.forEach(([label,key])=>$('maintenance'+key[0].toUpperCase()+key.slice(1)).value=months[key]||'');
+    $('maintenanceDueDate').value=maintenanceDueDateValue(r)?.text||'';
     $('maintenanceFormTitle').textContent='Wartungskunde bearbeiten'; $('maintenanceSaveBtn').textContent='Änderungen speichern'; show('maintenanceCancelBtn'); $('maintenanceForm').scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function saveMaintenanceCustomer(event){
     event.preventDefault(); if(!currentUser)return notify('Bitte anmelden.',true);
-    const months={}; maintenanceMonths.forEach(([label,key])=>months[key]=$('maintenance'+key[0].toUpperCase()+key.slice(1)).value.trim());
+    const dueDateRaw=$('maintenanceDueDate').value.trim();
+    if(dueDateRaw && !maintenanceDueDateValue({months:{due_date:dueDateRaw}}))return notify('Bitte das Fälligkeitsdatum als TT.MM oder TT.MM.JJJJ eingeben, z. B. 20.11.',true);
+    const months={due_date:dueDateRaw};
     const id=$('maintenanceId').value;
     const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),last_billing:$('maintenanceLastBilling').value||null,contract:$('maintenanceContract').value||null,completed_at:$('maintenanceDone').value||null,price_adjustment:$('maintenanceAdjustment').value.trim(),adjustment_accepted:$('maintenanceAccepted').value||null};
     const result=id?await client.from('maintenance_customers').update(payload).eq('id',id):await client.from('maintenance_customers').insert(payload);
@@ -2943,8 +2937,8 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       const cLastBilling=col('letzte abrechnung');
       const cAdjustment=header.findIndex(h=>h.startsWith('preisanpassung')&&!h.includes('akzeptiert'));
       const cAccepted=header.findIndex(h=>h.includes('preisanpassung akzeptiert'));
+      const cDueDate=header.findIndex(h=>h==='fälligkeitsdatum'||h==='faelligkeitsdatum');
       const monthHeaders=['jan','feb','mär','apr','mai','jun','jul','aug','sep','okt','nov','dez'];
-      const monthKeys=maintenanceMonths.map(x=>x[1]);
       let lastBinder='';
       const imported=[];
       for(let r=headerIndex+1;r<matrix.length;r++){
@@ -2953,16 +2947,17 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
         const customer=String(row[cCustomer]??'').trim();
         if(!customer)continue;
         if(['wartung','dichtheitsprüfung','reinigung / desinfektion','keine bedeutung (platzhalter)'].includes(customer.toLowerCase()))continue;
-        const months={};
-        monthHeaders.forEach((h,i)=>{
-          const ci=header.findIndex(x=>x===h||x.startsWith(h+'.'));
-          if(ci>=0&&row[ci]!=null&&String(row[ci]).trim()!=='')months[monthKeys[i]]=maintenanceExcelText(row[ci]);
-        });
+        let dueDate='';
+        if(cDueDate>=0&&row[cDueDate]!=null)dueDate=maintenanceExcelText(row[cDueDate]);
+        if(!dueDate){
+          const marked=[]; monthHeaders.forEach((h,i)=>{const ci=header.findIndex(x=>x===h||x.startsWith(h+'.'));if(ci>=0&&row[ci]!=null&&String(row[ci]).trim()!=='')marked.push({month:i+1,value:row[ci]});});
+          if(marked.length===1){const val=maintenanceExcelText(marked[0].value);const dm=val.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);if(dm)dueDate=val;}
+        }
         const priceValue=cPrice>=0?row[cPrice]:null;
         const payload={
           binder:lastBinder,
           maintenance_number:cNumber>=0?maintenanceExcelText(row[cNumber]):'',
-          customer,months,
+          customer,months:{due_date:dueDate},
           price:priceValue==null||priceValue===''?null:(Number(String(priceValue).replace(',','.'))||0),
           last_billing:maintenanceExcelDate(cLastBilling>=0?row[cLastBilling]:null),
           contract:maintenanceNormalizeYesNo(cContract>=0?row[cContract]:null),
@@ -2991,14 +2986,14 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   }
   function exportMaintenanceExcel(){
     if(!window.XLSX)return notify('Excel-Export ist nicht verfügbar. Bitte Seite neu laden.',true);
-    const rows=[['Hefter','W-Nr.','Wartungskunde','Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez','Preis letzte Abrechnung Netto','Wartungs-vertrag','erledigt','Preisanpassung ab 2026','Preisanpassung akzeptiert','Letzte Abrechnung']];
+    const rows=[['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis letzte Abrechnung Netto','Letzte Abrechnung','Wartungs-vertrag','erledigt','Preisanpassung ab 2026','Preisanpassung akzeptiert']];
     maintenanceRows.forEach(r=>{
-      const m=r.months||{};
-      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',...maintenanceMonths.map(x=>m[x[1]]||''),r.price??'',r.contract==='ja'?'X':r.contract==='nein'?'Nein':(r.contract||''),r.completed_at||'',r.price_adjustment||'',r.adjustment_accepted==='ja'?'X':r.adjustment_accepted==='nein'?'Nein':(r.adjustment_accepted||''),r.last_billing||'']);
+      const dueDate=maintenanceDueDateValue(r);
+      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',dueDate?.text||'',r.price??'',r.last_billing||'',r.contract==='ja'?'X':r.contract==='nein'?'Nein':(r.contract||''),r.completed_at||'',r.price_adjustment||'',r.adjustment_accepted==='ja'?'X':r.adjustment_accepted==='nein'?'Nein':(r.adjustment_accepted||'')]);
     });
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws['!freeze']={xSplit:3,ySplit:1};
-    ws['!cols']=[{wch:10},{wch:14},{wch:42},...Array(12).fill({wch:10}),{wch:20},{wch:16},{wch:14},{wch:22},{wch:24},{wch:18}];
+    ws['!cols']=[{wch:10},{wch:14},{wch:42},{wch:18},{wch:20},{wch:18},{wch:16},{wch:14},{wch:22},{wch:24}];
     const book=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book,ws,'Wartungsliste');
     XLSX.writeFile(book,`GEBA_Wartungsliste_${new Date().toISOString().slice(0,10)}.xlsx`);
   }
