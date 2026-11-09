@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0078D4">
-<title>GEBA-Lager</title>
+<title>GEBA-APP</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -2363,16 +2363,16 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   function openQrTools() {
     const c = cfg();
-    openModal('GEBA-Lager – QR-Codes', `
+    openModal('GEBA-APP – QR-Codes', `
       <div class="panel" style="box-shadow:none;text-align:center">
-        <h3>1. GEBA-Lager öffnen</h3>
+        <h3>1. GEBA-APP öffnen</h3>
         <p class="muted">Mit der Handykamera scannen, um die App zu öffnen.</p>
         <div id="appQr" style="display:flex;justify-content:center;margin:12px auto"></div>
         <p><a href="https://bergabsind45drin.github.io/GEBA-Lager/" target="_blank" rel="noopener">App öffnen</a></p>
       </div>
       <div class="panel" style="box-shadow:none;text-align:center">
         <h3>2. Supabase-Verbindung einrichten</h3>
-        <p class="muted">Auf einem anderen Gerät in GEBA-Lager „Supabase-QR-Code scannen“ wählen.</p>
+        <p class="muted">Auf einem anderen Gerät in GEBA-APP „Supabase-QR-Code scannen“ wählen.</p>
         <div id="supabaseQr" style="display:flex;justify-content:center;margin:12px auto"></div>
         <p id="supabaseQrMsg" class="muted"></p>
       </div>
@@ -2409,7 +2409,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       html5Scanner = new Html5Qrcode('configQrReader');
       await html5Scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 240, height: 240 } }, async decodedText => {
         let data;
-        try { data = JSON.parse(decodedText); } catch (e) { $('configQrMsg').textContent = 'Das ist kein GEBA-Lager-Einrichtungs-QR-Code.'; return; }
+        try { data = JSON.parse(decodedText); } catch (e) { $('configQrMsg').textContent = 'Das ist kein GEBA-APP-Einrichtungs-QR-Code.'; return; }
         if (data.type !== 'GEBA-Lager-Config' || !data.url || !data.key) {
           $('configQrMsg').textContent = 'Im QR-Code fehlen Projekt-URL oder Schlüssel.';
           return;
