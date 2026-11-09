@@ -184,6 +184,25 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 }
 
 
+
+/* Wartungsübersicht */
+#maintenanceView{width:calc(100vw - 36px);max-width:none;position:relative;left:50%;transform:translateX(-50%)}
+#maintenanceTableWrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+#maintenanceTable{min-width:1900px;border-collapse:collapse}
+#maintenanceTable thead{position:static!important;width:auto!important;height:auto!important;clip:auto!important;overflow:visible!important}
+#maintenanceTable tbody{display:table-row-group!important;width:auto!important}
+#maintenanceTable tbody tr{display:table-row!important;background:transparent!important;border:0!important;border-radius:0!important;padding:0!important;box-shadow:none!important}
+#maintenanceTable tbody td{display:table-cell!important;padding:9px 8px!important;border-bottom:1px solid #e0ebf5!important}
+#maintenanceTable tbody td::before{display:none!important}
+#maintenanceTable th,#maintenanceTable td{white-space:nowrap;padding:9px 8px}
+#maintenanceTable input,#maintenanceTable select{min-width:105px;width:100%;padding:8px;border:1px solid #c8dced;border-radius:8px;background:#fff;color:#17211d}
+#maintenanceTable .month-cell input{min-width:90px;width:110px}
+.contract-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800;border-radius:8px;padding:7px 10px}
+.contract-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800;border-radius:8px;padding:7px 10px}
+.accepted-yes{background:#d9f7df!important;color:#176b2c!important;font-weight:800}
+.accepted-no{background:#ffe0e0!important;color:#a21d1d!important;font-weight:800}
+body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{background:#111827!important;color:#e5e7eb!important;border-color:#4b5563!important}
+@media(max-width:700px){#maintenanceView{width:calc(100vw - 20px)}#maintenanceTable{min-width:1900px}}
 </style>
 </head>
 <body>
@@ -233,6 +252,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     <section id="homeView" class="panel">
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
+        <button id="openMaintenanceBtn" class="module-tile" type="button">
+          <span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
+        </button>
         <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
           <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
         </button>
@@ -246,6 +268,43 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
           <span class="module-icon">📋</span><strong>Inventur</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
         </button>
       </div>
+    </section>
+
+    <section id="maintenanceView" class="hidden">
+      <div class="row view-heading"><button id="maintenanceHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>🛠️ Wartung</h2></div>
+      <section class="panel" style="margin-top:16px">
+        <div class="row" style="justify-content:space-between;align-items:center"><h3 id="maintenanceFormTitle">Wartungskunde anlegen</h3><button type="button" id="maintenanceRefreshBtn" class="secondary smallbtn">↻ Aktualisieren</button></div>
+        <form id="maintenanceForm" class="tool-form">
+          <input type="hidden" id="maintenanceId">
+          <div class="field"><label for="maintenanceBinder">Hefter</label><input id="maintenanceBinder" placeholder="z. B. A"></div>
+          <div class="field"><label for="maintenanceNumber">W-Nr.</label><input id="maintenanceNumber" placeholder="Wartungsnummer"></div>
+          <div class="field wide"><label for="maintenanceCustomer">Wartungskunde</label><input id="maintenanceCustomer" required placeholder="Name des Kunden"></div>
+          <div class="field"><label for="maintenancePrice">Preis (€)</label><input id="maintenancePrice" type="number" min="0" step="0.01" placeholder="0,00"></div>
+          <div class="field"><label for="maintenanceLastBilling">Letzte Abrechnung</label><input id="maintenanceLastBilling" type="date"></div>
+          <div class="field"><label for="maintenanceContract">Wartungsvertrag</label><select id="maintenanceContract"><option value="">Bitte wählen</option><option value="ja">Ja</option><option value="nein">Nein</option></select></div>
+          <div class="field"><label for="maintenanceDone">Erledigt am</label><input id="maintenanceDone" type="date"></div>
+          <div class="field"><label for="maintenanceAdjustment">Preisanpassung</label><input id="maintenanceAdjustment" placeholder="z. B. 5 % ab 01.01."></div>
+          <div class="field"><label for="maintenanceAccepted">Preisanpassung akzeptiert</label><select id="maintenanceAccepted"><option value="">Bitte wählen</option><option value="ja">Ja</option><option value="nein">Nein</option></select></div>
+          <div class="wide"><h3 style="margin:8px 0">Fälligkeit je Monat</h3><p class="muted">Hier kannst du eintragen, was beziehungsweise wann im jeweiligen Monat fällig ist.</p></div>
+          <div class="field"><label for="maintenanceJan">Jan.</label><input id="maintenanceJan" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceFeb">Feb.</label><input id="maintenanceFeb" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceMar">März</label><input id="maintenanceMar" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceApr">Apr.</label><input id="maintenanceApr" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceMay">Mai</label><input id="maintenanceMay" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceJun">Juni</label><input id="maintenanceJun" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceJul">Juli</label><input id="maintenanceJul" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceAug">Aug.</label><input id="maintenanceAug" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceSep">Sept.</label><input id="maintenanceSep" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceOct">Okt.</label><input id="maintenanceOct" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceNov">Nov.</label><input id="maintenanceNov" placeholder="Fälligkeit / Leistung"></div>
+          <div class="field"><label for="maintenanceDec">Dez.</label><input id="maintenanceDec" placeholder="Fälligkeit / Leistung"></div>
+          <div class="wide row"><button type="submit" id="maintenanceSaveBtn">＋ Wartungskunde speichern</button><button type="button" id="maintenanceCancelBtn" class="secondary hidden">Abbrechen</button></div>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="row" style="justify-content:space-between"><h3>Wartungskunden</h3><span id="maintenanceCount" class="pill">0 Kunden</span></div>
+        <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
+      </section>
     </section>
 
     <section id="vehiclesView" class="hidden">
@@ -592,6 +651,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const isMonteur = currentRole === 'monteur';
     $('userEmail').textContent = isMonteur ? (currentUser.user_metadata?.name || 'Monteur') : (currentUser.email || '');
     ['qrToolsBtn','editorModeBtn'].forEach(id => $(id).classList.toggle('hidden', isMonteur));
+    $('openMaintenanceBtn').classList.toggle('hidden', isMonteur);
     $('openInventoryBtn').classList.toggle('hidden', isMonteur);
     $('openToolsBtn').classList.toggle('hidden', isMonteur);
     $('openFleetInventoryBtn').classList.toggle('hidden', false);
@@ -2751,16 +2811,73 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     await loadVehicleRecords(); notify('Firmenfahrzeug und zugehörige Inventurdaten wurden gelöscht.');
   }
 
+  const maintenanceMonths = [
+    ['Jan.','jan'],['Feb.','feb'],['März','mar'],['Apr.','apr'],['Mai','may'],['Juni','jun'],
+    ['Juli','jul'],['Aug.','aug'],['Sept.','sep'],['Okt.','oct'],['Nov.','nov'],['Dez.','dec']
+  ];
+  let maintenanceRows = [];
+  async function loadMaintenanceCustomers() {
+    const {data,error} = await client.from('maintenance_customers').select('*').order('customer',{ascending:true});
+    if(error){ $('maintenanceTableWrap').innerHTML = '<p class="msg error">Wartungsdaten konnten nicht geladen werden: '+escapeHtml(error.message)+'<br>Prüfe, ob das Wartungs-SQL in Supabase ausgeführt wurde.</p>'; return; }
+    maintenanceRows = data || []; renderMaintenanceCustomers();
+  }
+  function renderMaintenanceCustomers(){
+    $('maintenanceCount').textContent = maintenanceRows.length+' Kunden';
+    if(!maintenanceRows.length){$('maintenanceTableWrap').innerHTML='<p class="muted">Noch keine Wartungskunden angelegt.</p>';return;}
+    const headers=['Hefter','W-Nr.','Wartungskunde',...maintenanceMonths.map(x=>x[0]),'Preis','Letzte Abrechnung','Wartungsvertrag','Erledigt am','Preisanpassung','Preisanpassung akzeptiert','Aktionen'];
+    $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+maintenanceRows.map(r=>{
+      const months=r.months||{};
+      return '<tr><td>'+escapeHtml(r.binder||'–')+'</td><td>'+escapeHtml(r.maintenance_number||'–')+'</td><td><strong>'+escapeHtml(r.customer)+'</strong></td>'+maintenanceMonths.map(([label,key])=>'<td class="month-cell">'+escapeHtml(months[key]||'–')+'</td>').join('')+
+      '<td>'+ (r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'}))+'</td><td>'+escapeHtml(r.last_billing||'–')+'</td><td><span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span></td><td>'+escapeHtml(r.completed_at||'–')+'</td><td>'+escapeHtml(r.price_adjustment||'–')+'</td><td><span class="'+(r.adjustment_accepted==='ja'?'accepted-yes':r.adjustment_accepted==='nein'?'accepted-no':'')+'">'+escapeHtml(r.adjustment_accepted||'–')+'</span></td><td><div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div></td></tr>';
+    }).join('')+'</tbody></table>';
+  }
+  function resetMaintenanceForm(){
+    $('maintenanceForm').reset(); $('maintenanceId').value=''; $('maintenanceFormTitle').textContent='Wartungskunde anlegen'; $('maintenanceSaveBtn').textContent='＋ Wartungskunde speichern'; hide('maintenanceCancelBtn');
+  }
+  function editMaintenanceCustomer(id){
+    const r=maintenanceRows.find(x=>String(x.id)===String(id)); if(!r)return;
+    $('maintenanceId').value=r.id; $('maintenanceBinder').value=r.binder||''; $('maintenanceNumber').value=r.maintenance_number||''; $('maintenanceCustomer').value=r.customer||'';
+    $('maintenancePrice').value=r.price??''; $('maintenanceLastBilling').value=r.last_billing||''; $('maintenanceContract').value=r.contract||''; $('maintenanceDone').value=r.completed_at||''; $('maintenanceAdjustment').value=r.price_adjustment||''; $('maintenanceAccepted').value=r.adjustment_accepted||'';
+    const months=r.months||{}; maintenanceMonths.forEach(([label,key])=>$('maintenance'+key[0].toUpperCase()+key.slice(1)).value=months[key]||'');
+    $('maintenanceFormTitle').textContent='Wartungskunde bearbeiten'; $('maintenanceSaveBtn').textContent='Änderungen speichern'; show('maintenanceCancelBtn'); $('maintenanceForm').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  async function saveMaintenanceCustomer(event){
+    event.preventDefault(); if(currentRole!=='office')return notify('Keine Berechtigung.',true);
+    const months={}; maintenanceMonths.forEach(([label,key])=>months[key]=$('maintenance'+key[0].toUpperCase()+key.slice(1)).value.trim());
+    const id=$('maintenanceId').value;
+    const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),last_billing:$('maintenanceLastBilling').value||null,contract:$('maintenanceContract').value||null,completed_at:$('maintenanceDone').value||null,price_adjustment:$('maintenanceAdjustment').value.trim(),adjustment_accepted:$('maintenanceAccepted').value||null};
+    const result=id?await client.from('maintenance_customers').update(payload).eq('id',id):await client.from('maintenance_customers').insert(payload);
+    if(result.error)return notify('Wartungskunde konnte nicht gespeichert werden: '+result.error.message,true);
+    resetMaintenanceForm(); await loadMaintenanceCustomers(); notify(id?'Wartungskunde aktualisiert.':'Wartungskunde angelegt.');
+  }
+  async function deleteMaintenanceCustomer(id){
+    if(!editorMode)return notify('Löschen ist nur im Editor-Modus möglich.',true);
+    const r=maintenanceRows.find(x=>String(x.id)===String(id)); if(!r||!confirm('Wartungskunde „'+r.customer+'“ wirklich löschen?'))return;
+    const {error}=await client.from('maintenance_customers').delete().eq('id',id); if(error)return notify('Wartungskunde konnte nicht gelöscht werden: '+error.message,true);
+    await loadMaintenanceCustomers(); notify('Wartungskunde gelöscht.');
+  }
+
   function showMainView(view) {
     if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
-    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView');
-    if (view === 'inventory') show('inventoryView');
+    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('maintenanceView');
+    if (view === 'maintenance') show('maintenanceView');
+    else if (view === 'inventory') show('inventoryView');
     else if (view === 'tools') show('toolView');
     else if (view === 'vehicles') show('vehiclesView');
     else if (view === 'fleet') show('fleetInventoryView');
     else show('homeView');
     window.scrollTo(0, 0);
   }
+  $('openMaintenanceBtn').onclick = async () => { showMainView('maintenance'); await loadMaintenanceCustomers(); };
+  $('maintenanceHomeBtn').onclick = () => showMainView('home');
+  $('maintenanceRefreshBtn').onclick = loadMaintenanceCustomers;
+  $('maintenanceForm').addEventListener('submit', saveMaintenanceCustomer);
+  $('maintenanceCancelBtn').onclick = resetMaintenanceForm;
+  $('maintenanceTableWrap').addEventListener('click', e => {
+    const edit=e.target.closest('[data-edit-maintenance]'); const del=e.target.closest('[data-delete-maintenance]');
+    if(edit)editMaintenanceCustomer(edit.dataset.editMaintenance); if(del)deleteMaintenanceCustomer(del.dataset.deleteMaintenance);
+  });
+
   $('openVehiclesBtn').onclick = async () => { showMainView('vehicles'); await loadVehicleRecords(); };
   $('vehiclesHomeBtn').onclick = () => showMainView('home');
   $('vehicleRecordForm').addEventListener('submit', saveVehicleRecord);
