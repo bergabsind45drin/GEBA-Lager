@@ -2209,19 +2209,13 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
   }
 
   function orderTextForGroup(manufacturer, items) {
-    // Tab-getrennte Spalten lassen sich beim Einfügen z. B. in Tabellenprogramme sauber aufteilen.
-    const lines = [
-      'Guten Tag,',
-      '',
-      'hiermit bestellen wir folgende Artikel bei Ihnen:',
-      '',
-      'Bestellmenge\tArtikelnummer\tArtikel'
-    ];
-    items.forEach(item => {
-      lines.push(`${Number(item.quantity).toLocaleString('de-DE')} ${item.unit}\t${item.sku}\t${item.name}`);
-    });
-    lines.push('', 'Vielen Dank und freundliche Grüße');
-    return lines.join('\n');
+    // Eine kompakte, kopierfreundliche Zeile je Artikel: Menge | Artikelnummer | Artikel.
+    return [
+      manufacturer,
+      ...items.map(item =>
+        `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} | ${item.sku} | ${item.name}`
+      )
+    ].join('\n');
   }
 
   function openOrderList() {
