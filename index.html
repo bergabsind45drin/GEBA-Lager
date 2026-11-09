@@ -238,7 +238,34 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     </section>
 
     <section id="vehiclesView" class="hidden">
-      <div class="row view-heading"><button id="vehiclesHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>🚐 Fahrzeuge</h2></div>
+      <div class="row view-heading"><button id="vehiclesHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>🚐 Firmenfahrzeuge</h2></div>
+      <section class="panel" style="margin-top:16px">
+        <h3 id="vehicleRecordFormTitle">Fahrzeug anlegen</h3>
+        <form id="vehicleRecordForm" class="tool-form">
+          <input type="hidden" id="vehicleRecordId">
+          <div class="field"><label for="vrPlate">Kennzeichen</label><input id="vrPlate" required placeholder="z. B. DO-AB 123"></div>
+          <div class="field"><label for="vrName">Fahrzeug</label><input id="vrName" required placeholder="z. B. VW Crafter"></div>
+          <div class="field"><label for="vrChassis">Fahrgestellnr.</label><input id="vrChassis"></div>
+          <div class="field"><label for="vrDriver">Fahrzeugführer</label><input id="vrDriver"></div>
+          <div class="field"><label for="vrLastHu">Letzte HU/AU</label><input id="vrLastHu" type="date"></div>
+          <div class="field"><label for="vrNextHu">Nächste HU/AU</label><input id="vrNextHu" type="date"></div>
+          <div class="field"><label for="vrLastOil">Letzter Ölwechsel</label><input id="vrLastOil" type="date"></div>
+          <div class="field"><label for="vrNextOil">Nächster Ölwechsel</label><input id="vrNextOil" type="date"></div>
+          <div class="field"><label for="vrLastTires">Letzter Reifenwechsel</label><input id="vrLastTires" type="date"></div>
+          <div class="field"><label for="vrNewTires">Neue Reifen 2026</label><input id="vrNewTires" placeholder="z. B. 4 neue Sommerreifen / Datum"></div>
+          <div class="field"><label for="vrTireStorage">Lager Reifen</label><input id="vrTireStorage" placeholder="z. B. Reifenlager, Regal 2"></div>
+          <div class="field"><label for="vrLastRepair">Letzte Reparatur</label><input id="vrLastRepair" type="date"></div>
+          <div class="field wide"><label for="vrRepairDescription">Was wurde repariert?</label><input id="vrRepairDescription" placeholder="Beschreibung der Reparatur"></div>
+          <div class="field"><label for="vrNotes">Bemerkungen</label><input id="vrNotes"></div>
+          <div class="field"><label for="vrOdometerDate">Ablesedatum</label><input id="vrOdometerDate" type="date"></div>
+          <div class="field"><label for="vrOdometer">Kilometerstand</label><input id="vrOdometer" type="number" min="0" step="1" placeholder="z. B. 125000"></div>
+          <div class="wide row" style="gap:8px"><button type="submit" id="saveVehicleRecordBtn">＋ Fahrzeug speichern</button><button type="button" id="cancelVehicleEditBtn" class="secondary hidden">Abbrechen</button></div>
+        </form>
+      </section>
+      <section class="panel" style="margin-top:16px">
+        <div class="row" style="justify-content:space-between;align-items:center"><h3>Fahrzeugübersicht</h3><button type="button" id="refreshVehicleRecordsBtn" class="secondary smallbtn">↻ Aktualisieren</button></div>
+        <div id="vehicleRecordsList" class="muted">Fahrzeuge werden geladen …</div>
+      </section>
     </section>
 
     <section id="fleetInventoryView" class="hidden">
@@ -2621,6 +2648,79 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
 
+
+  const vehicleRecordFields = [
+    ['license_plate','vrPlate'],['name','vrName'],['chassis_number','vrChassis'],['driver','vrDriver'],
+    ['last_hu_au','vrLastHu'],['next_hu_au','vrNextHu'],['last_oil_change','vrLastOil'],['next_oil_change','vrNextOil'],
+    ['last_tire_change','vrLastTires'],['new_tires_2026','vrNewTires'],['tire_storage','vrTireStorage'],
+    ['last_repair','vrLastRepair'],['repair_description','vrRepairDescription'],['notes','vrNotes'],
+    ['odometer_date','vrOdometerDate'],['odometer_reading','vrOdometer']
+  ];
+  async function loadVehicleRecords() {
+    if (!client || !currentUser) return;
+    const {data,error} = await client.from('fleet_vehicles').select('*').order('license_plate');
+    if (error) {
+      $('vehicleRecordsList').innerHTML = '<p class="error">Fahrzeugdaten konnten nicht geladen werden: ' + escapeHtml(error.message) + '<br>Bitte zuerst das SQL für die Fahrzeugverwaltung in Supabase ausführen.</p>';
+      return;
+    }
+    vehicleRecords = data || [];
+    renderVehicleRecords();
+  }
+  function formatVehicleDate(value) {
+    if (!value) return '–';
+    const d = new Date(value + 'T00:00:00');
+    return Number.isNaN(d.getTime()) ? escapeHtml(value) : d.toLocaleDateString('de-DE');
+  }
+  function renderVehicleRecords() {
+    const headers = [['license_plate','Kennzeichen'],['name','Fahrzeug'],['chassis_number','Fahrgestellnr.'],['driver','Fahrzeugführer'],
+      ['last_hu_au','Letzte HU/AU'],['next_hu_au','Nächste HU/AU'],['last_oil_change','Letzter Ölwechsel'],['next_oil_change','Nächster Ölwechsel'],
+      ['last_tire_change','Letzter Reifenwechsel'],['new_tires_2026','Neue Reifen 2026'],['tire_storage','Lager Reifen'],
+      ['last_repair','Letzte Reparatur'],['repair_description','Was wurde repariert'],['notes','Bemerkungen'],['odometer_date','Ablesedatum'],['odometer_reading','Kilometerstand']];
+    if (!vehicleRecords.length) { $('vehicleRecordsList').innerHTML = '<p class="muted">Noch keine Firmenfahrzeuge angelegt. Nutze das Formular oben, um das erste Fahrzeug einzutragen.</p>'; return; }
+    $('vehicleRecordsList').innerHTML = '<div class="table-wrap"><table><thead><tr>' + headers.map(h => '<th>' + h[1] + '</th>').join('') + '<th>Aktionen</th></tr></thead><tbody>' +
+      vehicleRecords.map(v => '<tr>' + headers.map(([key]) => '<td data-label="' + headers.find(h=>h[0]===key)[1] + '">' + (['last_hu_au','next_hu_au','last_oil_change','next_oil_change','last_tire_change','last_repair','odometer_date'].includes(key) ? formatVehicleDate(v[key]) : escapeHtml(v[key] ?? '–')) + '</td>').join('') +
+      '<td data-label="Aktionen"><div class="row"><button type="button" class="secondary smallbtn" data-edit-vehicle-record="' + v.id + '">Bearbeiten</button><button type="button" class="danger smallbtn" data-delete-vehicle-record="' + v.id + '">Löschen</button></div></td></tr>').join('') + '</tbody></table></div>';
+  }
+  function resetVehicleRecordForm() {
+    $('vehicleRecordForm').reset(); $('vehicleRecordId').value = '';
+    $('vehicleRecordFormTitle').textContent = 'Fahrzeug anlegen';
+    $('saveVehicleRecordBtn').textContent = '＋ Fahrzeug speichern';
+    hide('cancelVehicleEditBtn');
+  }
+  function editVehicleRecord(id) {
+    const v = vehicleRecords.find(x => String(x.id) === String(id)); if (!v) return;
+    $('vehicleRecordId').value = v.id;
+    vehicleRecordFields.forEach(([key,field]) => { $(field).value = v[key] == null ? '' : String(v[key]); });
+    $('vehicleRecordFormTitle').textContent = 'Fahrzeug bearbeiten';
+    $('saveVehicleRecordBtn').textContent = 'Änderungen speichern';
+    show('cancelVehicleEditBtn');
+    $('vehicleRecordForm').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  async function saveVehicleRecord(event) {
+    event.preventDefault();
+    if (currentRole !== 'office') return notify('Nur das Büro darf Firmenfahrzeuge bearbeiten.', true);
+    const payload = {};
+    vehicleRecordFields.forEach(([key,field]) => {
+      const value = $(field).value.trim();
+      payload[key] = value === '' ? null : (key === 'odometer_reading' ? Number(value) : value);
+    });
+    if (!payload.license_plate || !payload.name) return notify('Bitte Kennzeichen und Fahrzeug ausfüllen.', true);
+    const id = $('vehicleRecordId').value;
+    const result = id ? await client.from('fleet_vehicles').update(payload).eq('id',id) : await client.from('fleet_vehicles').insert({...payload,created_by:currentUser.id});
+    if (result.error) return notify('Fahrzeug konnte nicht gespeichert werden: ' + result.error.message, true);
+    resetVehicleRecordForm(); await loadVehicleRecords(); notify(id ? 'Fahrzeugdaten wurden aktualisiert.' : 'Firmenfahrzeug wurde angelegt.');
+  }
+  async function deleteVehicleRecord(id) {
+    if (currentRole !== 'office') return notify('Nur das Büro darf Firmenfahrzeuge löschen.', true);
+    const v = vehicleRecords.find(x => String(x.id) === String(id)); if (!v) return;
+    if (!confirm('Firmenfahrzeug ' + (v.license_plate || v.name) + ' wirklich löschen? Zugehörige Inventurdaten können ebenfalls betroffen sein.')) return;
+    const {error: inventoryError} = await client.from('vehicle_inventory').delete().eq('vehicle_id',id);
+    if (inventoryError) return notify('Zugehörige Inventurdaten konnten nicht gelöscht werden: ' + inventoryError.message, true);
+    const {error} = await client.from('fleet_vehicles').delete().eq('id',id);
+    if (error) return notify('Fahrzeug konnte nicht gelöscht werden: ' + error.message, true);
+    await loadVehicleRecords(); notify('Firmenfahrzeug und zugehörige Inventurdaten wurden gelöscht.');
+  }
+
   function showMainView(view) {
     if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
     hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView');
@@ -2631,8 +2731,17 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     else show('homeView');
     window.scrollTo(0, 0);
   }
-  $('openVehiclesBtn').onclick = () => showMainView('vehicles');
+  $('openVehiclesBtn').onclick = async () => { showMainView('vehicles'); await loadVehicleRecords(); };
   $('vehiclesHomeBtn').onclick = () => showMainView('home');
+  $('vehicleRecordForm').addEventListener('submit', saveVehicleRecord);
+  $('cancelVehicleEditBtn').onclick = resetVehicleRecordForm;
+  $('refreshVehicleRecordsBtn').onclick = loadVehicleRecords;
+  $('vehicleRecordsList').addEventListener('click', event => {
+    const edit = event.target.closest('[data-edit-vehicle-record]');
+    const del = event.target.closest('[data-delete-vehicle-record]');
+    if (edit) editVehicleRecord(edit.dataset.editVehicleRecord);
+    if (del) deleteVehicleRecord(del.dataset.deleteVehicleRecord);
+  });
   $('openFleetInventoryBtn').onclick = async () => { showMainView('fleet'); await loadFleetInventory(); };
   $('fleetHomeBtn').onclick = () => showMainView('home');
   $('fleetCreateTab').onclick = () => { show('fleetCreatePanel'); hide('fleetCountPanel'); $('fleetCreateTab').classList.remove('secondary'); $('fleetCountTab').classList.add('secondary'); };
