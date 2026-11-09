@@ -403,7 +403,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       </section>
       <section class="panel">
         <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3><div class="row" style="align-items:center;flex-wrap:wrap"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="due">Nur fällige</option></select><label for="maintenanceSort">Sortierung</label><select id="maintenanceSort" class="smallbtn"><option value="number-asc">Hefter / W-Nr. aufsteigend</option><option value="number-desc">Hefter / W-Nr. absteigend</option><option value="customer-asc">Wartungskunde A–Z</option><option value="customer-desc">Wartungskunde Z–A</option><option value="price-asc">Preis aufsteigend</option><option value="price-desc">Preis absteigend</option><option value="binder-asc">Hefter aufsteigend</option><option value="binder-desc">Hefter absteigend</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div></div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0 12px"><label for="maintenanceSearch">Suche</label><input id="maintenanceSearch" type="search" placeholder="Hefter, W-Nr. oder Wartungskunde suchen …" style="flex:1;min-width:220px"><button type="button" id="maintenanceImportBtn" class="secondary smallbtn">↑ Excel importieren</button><input type="file" id="maintenanceImportFile" accept=".xlsx,.xls,.csv" class="hidden"><button type="button" id="maintenanceExportBtn" class="secondary smallbtn">↓ Excel exportieren</button><span class="muted" style="font-size:12px">Import aktualisiert vorhandene Kunden und ergänzt neue Einträge.</span></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0 12px"><label for="maintenanceSearch">Suche</label><input id="maintenanceSearch" type="search" placeholder="Hefter, W-Nr. oder Wartungskunde suchen …" style="flex:1;min-width:220px"><button type="button" id="maintenanceImportBtn" class="secondary smallbtn">↑ Excel importieren</button><input type="file" id="maintenanceImportFile" accept=".xlsx,.xls,.csv" class="hidden"><button type="button" id="maintenanceExportBtn" class="secondary smallbtn">↓ Excel exportieren</button><button type="button" id="maintenanceClearListBtn" class="danger smallbtn hidden">Liste vollständig löschen</button><span class="muted" style="font-size:12px">Import aktualisiert vorhandene Kunden und ergänzt neue Einträge.</span></div>
         <p id="maintenanceDueHint" class="muted" style="margin:6px 0 12px">Fälligkeiten für den aktuellen Monat.</p>
         <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
       </section>
@@ -1717,6 +1717,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     renderTools();
     if (typeof renderVehicleRecords === 'function' && $('vehicleRecordsList')) renderVehicleRecords();
     renderToolBookings();
+    if ($('maintenanceClearListBtn')) $('maintenanceClearListBtn').classList.toggle('hidden', !enabled);
     if ($('maintenanceTableWrap')) {
       // Die Wartungsliste sofort an den neuen Editor-Status anpassen.
       // Zusätzlich direkt die bereits vorhandenen Aktionszeilen aktualisieren,
@@ -3027,6 +3028,19 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     await loadMaintenanceCustomers(); notify('Wartungskunde gelöscht.');
   }
 
+  async function clearMaintenanceList(){
+    if(!editorMode || currentRole!=='office')return notify('Die Wartungsliste kann nur im Büro-Editor-Modus vollständig gelöscht werden.',true);
+    if(!maintenanceRows.length)return notify('Die Wartungsliste ist bereits leer.');
+    const count=maintenanceRows.length;
+    if(!confirm('ACHTUNG: Wirklich ALLE '+count+' Wartungseinträge dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden.'))return;
+    if(!confirm('Letzte Sicherheitsabfrage: Soll die komplette Wartungsliste wirklich geleert werden?'))return;
+    const {data,error}=await client.from('maintenance_customers').delete().not('id','is',null).select('id');
+    if(error)return notify('Wartungsliste konnte nicht geleert werden: '+error.message,true);
+    resetMaintenanceForm();
+    await loadMaintenanceCustomers();
+    notify((data?.length??count)+' Wartungseinträge wurden gelöscht.');
+  }
+
 
   function maintenanceExcelDate(value){
     if(value==null||value==='')return null;
@@ -3136,6 +3150,7 @@ Bestehende Preise bleiben erhalten, da keine Preis-Spalte angegeben ist.`))retur
   $('maintenanceImportBtn').onclick = () => $('maintenanceImportFile').click();
   $('maintenanceImportFile').addEventListener('change', e => importMaintenanceExcel(e.target.files?.[0]));
   $('maintenanceExportBtn').onclick = exportMaintenanceExcel;
+  $('maintenanceClearListBtn').onclick = clearMaintenanceList;
   $('maintenanceForm').addEventListener('submit', saveMaintenanceCustomer);
   $('maintenanceCancelBtn').onclick = resetMaintenanceForm;
   $('maintenanceTableWrap').addEventListener('click', e => {
