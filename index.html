@@ -326,6 +326,10 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
   background: #1f2937 !important;
   color: #facc15 !important;
 }
+.maintenance-year-tab{background:#e2e8f0!important;color:#334155!important;border:1px solid #cbd5e1!important;border-radius:8px 8px 0 0!important;padding:8px 14px!important;min-height:38px!important}
+.maintenance-year-tab.active{background:#fff!important;color:#005a9e!important;border-bottom:3px solid #0078D4!important}
+body.dark-mode .maintenance-year-tab{background:#334155!important;color:#e5e7eb!important;border-color:#475569!important}
+body.dark-mode .maintenance-year-tab.active{background:#1f2937!important;color:#93c5fd!important;border-bottom-color:#60a5fa!important}
 </style>
 </head>
 <body>
@@ -423,16 +427,15 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
       </section>
       <section class="panel hidden" id="maintenanceYearPanel" style="margin-top:12px">
         <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <h3>Jahresübersicht</h3>
+          <h3>📚 Wartungsjahre</h3>
           <div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
-            <label for="maintenanceYearSelect">Jahr</label>
-            <select id="maintenanceYearSelect" class="smallbtn"></select>
-            <button type="button" id="maintenanceYearNewBtn" class="secondary smallbtn">＋ Neues Jahr</button>
-            <button type="button" id="maintenanceYearExportBtn" class="secondary smallbtn">↓ Jahrestabelle exportieren</button>
+            <div id="maintenanceYearTabs" class="row" role="tablist" aria-label="Wartungsjahre" style="gap:4px;flex-wrap:wrap"></div><select id="maintenanceYearSelect" class="hidden" aria-hidden="true"></select>
+            <button type="button" id="maintenanceYearExportBtn" class="secondary smallbtn">↓ Jahr als Excel sichern</button>
+            <button type="button" id="maintenanceYearNewBtn" class="secondary smallbtn">＋ Neues Jahr anlegen</button>
             <button type="button" id="closeMaintenanceYearBtn" class="secondary smallbtn">Schließen</button>
           </div>
         </div>
-        <p class="muted" style="margin:6px 0 0">Es wird dieselbe Wartungskundenliste verwendet – keine zweite Kundenliste. Wähle ein Jahr und exportiere die vorhandene Liste dafür als Excel-Datei.</p>
+        <p id="maintenanceYearStatus" class="muted" style="margin:8px 0 0">Wähle ein Jahr wie ein Tabellenblatt in Excel. Vor dem Anlegen des Folgejahres muss das ausgewählte Jahr als Excel-Sicherung exportiert werden. Es bleibt bei einer einzigen Kundenliste.</p>
       </section>
     </section>
 
@@ -2967,6 +2970,16 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
   }
 
   let maintenanceRows = [];
+  let maintenanceActiveYear = localStorage.getItem('geba-maintenance-active-year') || String(new Date().getFullYear());
+  function maintenanceYearRecord(r, year=maintenanceActiveYear){
+    return r?.months?.yearly?.[String(year)] || null;
+  }
+  function maintenanceCompletedForYear(r, year=maintenanceActiveYear){
+    const record=maintenanceYearRecord(r,year);
+    if(record && Object.prototype.hasOwnProperty.call(record,'completed_at'))return record.completed_at||'';
+    return String(year)===String(new Date().getFullYear()) ? (r.completed_at||'') : '';
+  }
+  function maintenanceYearBackupKey(year){return 'geba-maintenance-year-backup-'+String(year);}
   function maintenanceDueDateValue(r){
     const raw=String((r.months||{}).due_date||r.due_date||'').trim();
     const m=raw.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
@@ -3024,7 +3037,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
     const labels=headers;
     $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
       const due=maintenanceDueThisMonth(r); const dueDate=maintenanceDueDateValue(r);
-      const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(maintenanceDisplayDate(r.completed_at)||'–'),escapeHtml(r.price_adjustment||'–'),escapeHtml(r.months?.notes||'–'),'<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
+      const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(maintenanceDisplayDate(maintenanceCompletedForYear(r))||'–'),escapeHtml(r.price_adjustment||'–'),escapeHtml(r.months?.notes||'–'),'<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
       return '<tr class="'+(due?'maintenance-due':'')+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
     }).join('')+'</tbody></table>';
   }
@@ -3034,7 +3047,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
   function editMaintenanceCustomer(id){
     const r=maintenanceRows.find(x=>String(x.id)===String(id)); if(!r)return;
     $('maintenanceId').value=r.id; $('maintenanceBinder').value=r.binder||''; $('maintenanceNumber').value=r.maintenance_number||''; $('maintenanceCustomer').value=r.customer||'';
-    $('maintenancePrice').value=r.price??''; $('maintenanceContract').value=r.contract||''; $('maintenanceDone').value=r.completed_at||''; $('maintenanceAdjustment').value=r.price_adjustment||''; $('maintenanceNotes').value=r.months?.notes||'';
+    $('maintenancePrice').value=r.price??''; $('maintenanceContract').value=r.contract||''; $('maintenanceDone').value=maintenanceCompletedForYear(r)||''; $('maintenanceAdjustment').value=r.price_adjustment||''; $('maintenanceNotes').value=r.months?.notes||'';
     $('maintenanceDueDate').value=maintenanceDueDateValue(r)?.text||'';
     $('maintenanceFormTitle').textContent='Wartungskunde bearbeiten'; $('maintenanceSaveBtn').textContent='Änderungen speichern'; show('maintenanceCancelBtn'); $('maintenanceForm').scrollIntoView({behavior:'smooth',block:'start'});
   }
@@ -3044,7 +3057,11 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
     if(dueDateRaw && !maintenanceDueDateValue({months:{due_date:dueDateRaw}}))return notify('Bitte das Fälligkeitsdatum als TT.MM oder TT.MM.JJJJ eingeben, z. B. 20.11.',true);
     const months={...(maintenanceRows.find(x=>String(x.id)===String($('maintenanceId').value))?.months||{}),due_date:dueDateRaw,notes:$('maintenanceNotes').value.trim()};
     const id=$('maintenanceId').value;
-    const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),contract:$('maintenanceContract').value||null,completed_at:$('maintenanceDone').value||null,price_adjustment:$('maintenanceAdjustment').value.trim()};
+    const oldRow=maintenanceRows.find(x=>String(x.id)===String(id));
+    const yearly={...(oldRow?.months?.yearly||{})};
+    yearly[maintenanceActiveYear]={...(yearly[maintenanceActiveYear]||{}),completed_at:$('maintenanceDone').value||''};
+    months.yearly=yearly;
+    const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),contract:$('maintenanceContract').value||null,...(maintenanceActiveYear===String(new Date().getFullYear())?{completed_at:$('maintenanceDone').value||null}:{}),price_adjustment:$('maintenanceAdjustment').value.trim()};
     const result=id?await client.from('maintenance_customers').update(payload).eq('id',id):await client.from('maintenance_customers').insert(payload);
     if(result.error)return notify('Wartungskunde konnte nicht gespeichert werden: '+result.error.message,true);
     resetMaintenanceForm(); await loadMaintenanceCustomers(); notify(id?'Wartungskunde aktualisiert.':'Wartungskunde angelegt.');
@@ -3203,58 +3220,65 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   }
 
   function initMaintenanceYearSelect(){
-    const select=$('maintenanceYearSelect'); if(!select||select.options.length)return;
-    const current=new Date().getFullYear();
-    for(let year=2000;year<=current+10;year++){const option=document.createElement('option');option.value=String(year);option.textContent=String(year);select.appendChild(option);}
-    select.value=String(current);
+    const select=$('maintenanceYearSelect'); if(!select)return;
+    const years=new Set([String(new Date().getFullYear())]);
+    maintenanceRows.forEach(r=>Object.keys(r.months?.yearly||{}).forEach(y=>years.add(String(y))));
+    if(maintenanceActiveYear)years.add(String(maintenanceActiveYear));
+    const sorted=[...years].sort((a,b)=>Number(a)-Number(b));
+    select.innerHTML=sorted.map(y=>'<option value="'+escapeHtml(y)+'">'+escapeHtml(y)+'</option>').join('');
+    if(!years.has(maintenanceActiveYear))maintenanceActiveYear=String(new Date().getFullYear());
+    select.value=maintenanceActiveYear;
+    const tabs=$('maintenanceYearTabs');
+    if(tabs)tabs.innerHTML=sorted.map(y=>'<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'">'+escapeHtml(y)+'</button>').join('');
   }
   function renderMaintenanceYearTable(){
     initMaintenanceYearSelect();
-    const year=$('maintenanceYearSelect').value;
-    const rows=[...maintenanceRows].sort((a,b)=>String(a.binder||'').localeCompare(String(b.binder||''),'de',{numeric:true})||String(a.maintenance_number||'').localeCompare(String(b.maintenance_number||''),'de',{numeric:true}));
-    if(!rows.length){$('maintenanceYearTableWrap').innerHTML='<p class="muted">Noch keine Wartungskunden vorhanden.</p>';return;}
-    const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Preisanpassung','Notizen'];
-    const fields=['due_date','price','contract','price_adjustment','notes'];
-    $('maintenanceYearTableWrap').innerHTML='<table id="maintenanceYearTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>{
-      const saved=r.months?.yearly?.[year]||{};
-      const due= saved.due_date??maintenanceDueDateValue(r)?.text??'';
-      const price=saved.price??r.price??'';
-      const contract=saved.contract??r.contract??'';
-      const adjustment=saved.price_adjustment??r.price_adjustment??'';
-      const notes=saved.notes??r.months?.notes??'';
-      const input=(field,value,type='text')=>'<input data-year-customer="'+escapeHtml(r.id)+'" data-year-field="'+field+'" type="'+type+'" value="'+escapeHtml(value)+'" style="min-width:95px;width:100%">';
-      return '<tr><td>'+escapeHtml(r.binder||'–')+'</td><td>'+escapeHtml(r.maintenance_number||'–')+'</td><td><strong>'+escapeHtml(r.customer||'')+'</strong></td><td>'+input('due_date',due)+'</td><td>'+input('price',price,'number')+'</td><td><select data-year-customer="'+escapeHtml(r.id)+'" data-year-field="contract" style="min-width:85px"><option value="">–</option><option value="ja" '+(contract==='ja'?'selected':'')+'>Ja</option><option value="nein" '+(contract==='nein'?'selected':'')+'>Nein</option></select></td><td>'+input('price_adjustment',adjustment)+'</td><td>'+input('notes',notes)+'</td></tr>';
-    }).join('')+'</tbody></table>';
-  }
-  async function saveMaintenanceYearTable(){
-    if(!currentUser)return notify('Bitte anmelden.',true);
-    const year=$('maintenanceYearSelect').value;
-    const updates=new Map();
-    document.querySelectorAll('#maintenanceYearTable [data-year-customer]').forEach(el=>{
-      const id=el.dataset.yearCustomer; if(!updates.has(id))updates.set(id,{});
-      updates.get(id)[el.dataset.yearField]=el.value.trim();
-    });
-    for(const [id,values] of updates){
-      const row=maintenanceRows.find(r=>String(r.id)===String(id)); if(!row)continue;
-      const months={...(row.months||{}),yearly:{...(row.months?.yearly||{}),[year]:{...(row.months?.yearly?.[year]||{}),...values}}};
-      const {error}=await client.from('maintenance_customers').update({months}).eq('id',id);
-      if(error)return notify('Jahrestabelle konnte nicht gespeichert werden: '+error.message,true);
-      row.months=months;
-    }
-    renderMaintenanceYearTable(); notify('Jahrestabelle '+year+' wurde gespeichert.');
+    const year=maintenanceActiveYear;
+    const backupDone=!!localStorage.getItem(maintenanceYearBackupKey(year));
+    const status=$('maintenanceYearStatus');
+    if(status)status.textContent=backupDone
+      ? 'Jahr '+year+' ist als Excel-Sicherung exportiert. Du kannst jetzt das Folgejahr anlegen. Die Kundenliste bleibt dieselbe; „Erledigt am“ wird im neuen Jahr geleert.'
+      : 'Aktives Tabellenblatt: '+year+'. Bitte dieses Jahr zuerst über „Jahr als Excel sichern“ exportieren. Erst danach kann das Folgejahr angelegt werden.';
+    const newBtn=$('maintenanceYearNewBtn');
+    if(newBtn)newBtn.disabled=!backupDone;
   }
   function exportMaintenanceYearExcel(){
     if(!window.XLSX)return notify('Excel-Export ist nicht verfügbar. Bitte Seite neu laden.',true);
-    const year=$('maintenanceYearSelect').value;
-    const rows=[['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Preisanpassung','Notizen']];
+    const year=maintenanceActiveYear;
+    const rows=[['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Erledigt am','Preisanpassung','Notizen']];
     [...maintenanceRows].sort((a,b)=>String(a.binder||'').localeCompare(String(b.binder||''),'de',{numeric:true})||String(a.maintenance_number||'').localeCompare(String(b.maintenance_number||''),'de',{numeric:true})).forEach(r=>{
-      const v=r.months?.yearly?.[year]||{};
-      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',v.due_date??maintenanceDueDateValue(r)?.text??'',v.price??r.price??'',v.contract??r.contract??'',v.price_adjustment??r.price_adjustment??'',v.notes??r.months?.notes??'']);
+      const v=maintenanceYearRecord(r,year)||{};
+      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',v.due_date??maintenanceDueDateValue(r)?.text??'',v.price??r.price??'',v.contract??r.contract??'',maintenanceDisplayDate(maintenanceCompletedForYear(r,year)),v.price_adjustment??r.price_adjustment??'',v.notes??r.months?.notes??'']);
     });
     const ws=XLSX.utils.aoa_to_sheet(rows); ws['!freeze']={xSplit:3,ySplit:1};
-    ws['!cols']=[{wch:10},{wch:14},{wch:42},{wch:18},{wch:14},{wch:18},{wch:18},{wch:30}];
+    ws['!cols']=[{wch:10},{wch:14},{wch:42},{wch:18},{wch:14},{wch:18},{wch:18},{wch:18},{wch:30}];
     const book=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book,ws,'Wartung '+year);
-    XLSX.writeFile(book,`GEBA_Wartung_${year}.xlsx`);
+    XLSX.writeFile(book,`GEBA_Wartung_${year}_Sicherung.xlsx`);
+    localStorage.setItem(maintenanceYearBackupKey(year),new Date().toISOString());
+    renderMaintenanceYearTable();
+    notify('Excel-Sicherung für '+year+' wurde erstellt. Jetzt kannst du das Folgejahr anlegen.');
+  }
+  async function createMaintenanceYear(){
+    if(!currentUser)return notify('Bitte anmelden.',true);
+    const sourceYear=maintenanceActiveYear;
+    if(!localStorage.getItem(maintenanceYearBackupKey(sourceYear)))return notify('Bitte exportiere '+sourceYear+' zuerst als Excel-Sicherung.',true);
+    const next=String((Number(sourceYear)||new Date().getFullYear())+1);
+    if(maintenanceRows.some(r=>Object.prototype.hasOwnProperty.call(r.months?.yearly||{},next))){maintenanceActiveYear=next;renderMaintenanceYearTable();renderMaintenanceCustomers();return notify('Das Tabellenblatt '+next+' ist bereits vorhanden und wurde geöffnet.');}
+    if(!confirm('Neues Tabellenblatt für '+next+' anlegen? Alle Wartungskunden bleiben erhalten. „Erledigt am“ wird für '+next+' geleert. Das bisherige Jahr '+sourceYear+' bleibt unverändert.'))return;
+    for(let i=0;i<maintenanceRows.length;i++){
+      const row=maintenanceRows[i];
+      const yearly={...(row.months?.yearly||{})};
+      if(!yearly[next])yearly[next]={completed_at:''};
+      const months={...(row.months||{}),yearly};
+      const {error}=await client.from('maintenance_customers').update({months}).eq('id',row.id);
+      if(error)return notify('Jahr '+next+' konnte nicht angelegt werden: '+error.message,true);
+      row.months=months;
+    }
+    maintenanceActiveYear=next;
+    localStorage.setItem('geba-maintenance-active-year',next);
+    renderMaintenanceYearTable();
+    renderMaintenanceCustomers();
+    notify('Tabellenblatt '+next+' wurde angelegt. „Erledigt am“ ist für alle Kunden leer.');
   }
 
   function showMainView(view) {
@@ -3282,11 +3306,12 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('maintenanceImportBtn').onclick = () => $('maintenanceImportFile').click();
   $('maintenanceImportFile').addEventListener('change', e => importMaintenanceExcel(e.target.files?.[0]));
   $('maintenanceExportBtn').onclick = exportMaintenanceExcel;
-  $('maintenanceYearSelect').addEventListener('change',()=>{});
+   $('maintenanceYearSelect').addEventListener('change',e=>{maintenanceActiveYear=String(e.target.value);localStorage.setItem('geba-maintenance-active-year',maintenanceActiveYear);renderMaintenanceYearTable();renderMaintenanceCustomers();});
+   $('maintenanceYearTabs').addEventListener('click',e=>{const tab=e.target.closest('[data-maintenance-year]');if(!tab)return;maintenanceActiveYear=String(tab.dataset.maintenanceYear);localStorage.setItem('geba-maintenance-active-year',maintenanceActiveYear);renderMaintenanceYearTable();renderMaintenanceCustomers();});
   $('maintenanceYearExportBtn').onclick = exportMaintenanceYearExcel;
-  $('openMaintenanceYearBtn').onclick = () => { initMaintenanceYearSelect(); $('maintenanceYearPanel').classList.toggle('hidden'); };
+   $('openMaintenanceYearBtn').onclick = () => { initMaintenanceYearSelect(); renderMaintenanceYearTable(); $('maintenanceYearPanel').classList.toggle('hidden'); };
   $('closeMaintenanceYearBtn').onclick = () => $('maintenanceYearPanel').classList.add('hidden');
-  $('maintenanceYearNewBtn').onclick = () => { const sel=$('maintenanceYearSelect'); const next=Math.max(new Date().getFullYear(), Number(sel.value)||0)+1; if(![...sel.options].some(o=>Number(o.value)===next)){const o=document.createElement('option');o.value=String(next);o.textContent=String(next);sel.appendChild(o);} sel.value=String(next); notify('Jahr '+next+' ausgewählt. Beim Export wird dieselbe Wartungskundenliste verwendet.'); };
+   $('maintenanceYearNewBtn').onclick = createMaintenanceYear;
   $('maintenanceClearAllBtn').onclick = clearMaintenanceList;
   $('maintenanceForm').addEventListener('submit', saveMaintenanceCustomer);
   $('maintenanceCancelBtn').onclick = resetMaintenanceForm;
