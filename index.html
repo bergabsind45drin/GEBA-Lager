@@ -374,6 +374,23 @@ body.dark-mode .maintenance-year-tab.active{background:#1f2937!important;color:#
   #maintenanceTable tbody td { grid-template-columns:minmax(92px, 39%) minmax(0, 1fr) !important; gap:8px !important; font-size:12px !important; }
   #maintenanceTable tbody td::before { font-size:11px !important; }
 }
+
+/* Wartungstermine: überfällig = rote Schrift, im aktuellen Monat = gelbe Schrift */
+#maintenanceTable tbody tr.maintenance-overdue td,
+#maintenanceTable tbody tr.maintenance-overdue:hover td {
+  color:#ef4444 !important;
+  font-weight:700;
+  background:#ffffff !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
+  color:#f87171 !important;
+  background:#1f2937 !important;
+}
+@media (max-width:850px) {
+  #maintenanceTable tbody tr.maintenance-overdue td { color:#ef4444 !important; }
+  body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td { color:#f87171 !important; }
+}
 </style>
 </head>
 <body>
@@ -3034,13 +3051,21 @@ body.dark-mode .maintenance-year-tab.active{background:#1f2937!important;color:#
     if(month<1||month>12||day<1||day>31)return null;
     return {day,month,year,text:`${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}${year?'.'+year:''}`};
   }
-  function maintenanceDueThisMonth(r){
-    const due=maintenanceDueDateValue(r); if(!due)return false;
+  function maintenanceIsCompletedForActiveYear(r){
+    return !!maintenanceCompletedForYear(r, maintenanceActiveYear);
+  }
+  function maintenanceDueStatus(r){
+    const due=maintenanceDueDateValue(r); if(!due || maintenanceIsCompletedForActiveYear(r))return '';
     const now=new Date();
-    if(due.month!==now.getMonth()+1 || (due.year&&due.year!==now.getFullYear()))return false;
-    if(!r.completed_at)return true;
-    const done=new Date(r.completed_at+'T00:00:00');
-    return !(done.getFullYear()===now.getFullYear() && done.getMonth()===now.getMonth());
+    const dueYear=due.year || Number(maintenanceActiveYear) || now.getFullYear();
+    const dueDate=new Date(dueYear,due.month-1,due.day);
+    const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+    if(dueDate < monthStart)return 'maintenance-overdue';
+    if(dueYear===now.getFullYear() && due.month===now.getMonth()+1)return 'maintenance-due';
+    return '';
+  }
+  function maintenanceDueThisMonth(r){
+    return maintenanceDueStatus(r)==='maintenance-due';
   }
   function updateMaintenanceBadge(){
     const count=maintenanceRows.filter(maintenanceDueThisMonth).length;
@@ -3082,9 +3107,9 @@ body.dark-mode .maintenance-year-tab.active{background:#1f2937!important;color:#
     const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Erledigt am','Preisanpassung','Notizen','Aktionen'];
     const labels=headers;
     $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
-      const due=maintenanceDueThisMonth(r); const dueDate=maintenanceDueDateValue(r);
+      const dueStatus=maintenanceDueStatus(r); const dueDate=maintenanceDueDateValue(r);
       const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(maintenanceDisplayDate(maintenanceCompletedForYear(r))||'–'),escapeHtml(r.price_adjustment||'–'),escapeHtml(r.months?.notes||'–'),'<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
-      return '<tr class="'+(due?'maintenance-due':'')+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
+      return '<tr class="'+dueStatus+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
     }).join('')+'</tbody></table>';
   }
   function resetMaintenanceForm(){
