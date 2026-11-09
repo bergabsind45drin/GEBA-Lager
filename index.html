@@ -52,7 +52,7 @@ th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 
 .module-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
 .module-tile{min-height:190px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;text-align:left;padding:22px;border-radius:18px;box-shadow:0 4px 14px #0078d41c;white-space:normal}
-.module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.module-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
+.module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.module-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4;position:relative}.vehicle-alert-badge{position:absolute;top:12px;right:14px;min-width:30px;height:30px;padding:0 8px;border-radius:999px;background:#d71920;color:#fff;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px #0003}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
 @media(max-width:600px){.module-tiles{grid-template-columns:1fr;gap:10px}.module-tile{min-height:135px;padding:18px}.view-heading{margin:0 0 10px}}
 
 /* Fahrzeugverwaltung: Fahrzeugübersicht über die verfügbare Bildschirmbreite */
@@ -63,6 +63,7 @@ th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 .vehicle-overview-panel th{font-size:.66rem;letter-spacing:0}
 .vehicle-overview-panel td .row{gap:4px}
 .vehicle-overview-panel td button{padding:6px 7px;font-size:.72rem}
+#vehicleRecordsList tbody tr.vehicle-due-row{background:#fff0b8!important;color:#493500!important;border-color:#e5c45a!important}#vehicleRecordsList tbody tr.vehicle-due-row td,#vehicleRecordsList tbody tr.vehicle-due-row td::before{color:#493500!important}body.dark-mode #vehicleRecordsList tbody tr.vehicle-due-row{background:#fff0b8!important;color:#493500!important;border-color:#e5c45a!important}
 @media(max-width:700px){#vehiclesView{width:calc(100vw - 20px)}.vehicle-overview-panel th,.vehicle-overview-panel td{font-size:.82rem}.vehicle-overview-panel th{font-size:.72rem}.vehicle-overview-panel tbody tr{grid-template-columns:repeat(2,minmax(0,1fr))}.vehicle-overview-panel td:last-child{grid-column:1/-1}}
 
 
@@ -239,7 +240,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
           <span class="module-icon">🧰</span><strong>Werkzeuge</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
         </button>
         <button id="openVehiclesBtn" class="module-tile" type="button">
-          <span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
+          <span class="vehicle-alert-badge hidden" id="vehicleAlertBadge" aria-label="Dringende Fahrzeugmeldungen">0</span><span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
         </button>
         <button id="openFleetInventoryBtn" class="module-tile" type="button">
           <span class="module-icon">📋</span><strong>Inventur</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
@@ -2681,14 +2682,34 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const d = new Date(value + 'T00:00:00');
     return Number.isNaN(d.getTime()) ? escapeHtml(value) : d.toLocaleDateString('de-DE');
   }
+  // Fällige Fahrzeugtermine: heute, überfällig oder innerhalb der nächsten 14 Tage.
+  function vehicleDueDates(vehicle) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const limit = new Date(today); limit.setDate(limit.getDate() + 14);
+    return ['next_hu_au','next_oil_change'].filter(key => {
+      const value = vehicle[key];
+      if (!value) return false;
+      const due = new Date(String(value).slice(0,10) + 'T00:00:00');
+      return !Number.isNaN(due.getTime()) && due <= limit;
+    });
+  }
+  function updateVehicleAlertBadge() {
+    const count = vehicleRecords.reduce((total, vehicle) => total + vehicleDueDates(vehicle).length, 0);
+    const badge = $('vehicleAlertBadge');
+    if (!badge) return;
+    badge.textContent = String(count);
+    badge.classList.toggle('hidden', count === 0);
+    badge.setAttribute('aria-label', count + ' dringende Fahrzeugmeldungen');
+  }
   function renderVehicleRecords() {
     const headers = [['license_plate','Kennzeichen'],['name','Fahrzeug'],['chassis_number','Fahrgestellnr.'],['driver','Fahrzeugführer'],
       ['last_hu_au','Letzte HU/AU'],['next_hu_au','Nächste HU/AU'],['last_oil_change','Letzter Ölwechsel'],['next_oil_change','Nächster Ölwechsel'],
       ['last_tire_change','Letzter Reifenwechsel'],['new_tires_2026','Neue Reifen 2026'],['tire_storage','Lager Reifen'],
       ['last_repair','Letzte Reparatur'],['repair_description','Was wurde repariert'],['notes','Bemerkungen'],['odometer_date','Ablesedatum'],['odometer_reading','Kilometerstand']];
+    updateVehicleAlertBadge();
     if (!vehicleRecords.length) { $('vehicleRecordsList').innerHTML = '<p class="muted">Noch keine Firmenfahrzeuge angelegt. Nutze das Formular oben, um das erste Fahrzeug einzutragen.</p>'; return; }
     $('vehicleRecordsList').innerHTML = '<div class="table-wrap"><table><thead><tr>' + headers.map(h => '<th>' + h[1] + '</th>').join('') + '<th>Aktionen</th></tr></thead><tbody>' +
-      vehicleRecords.map(v => '<tr>' + headers.map(([key]) => '<td data-label="' + headers.find(h=>h[0]===key)[1] + '">' + (['last_hu_au','next_hu_au','last_oil_change','next_oil_change','last_tire_change','last_repair','odometer_date'].includes(key) ? formatVehicleDate(v[key]) : escapeHtml(v[key] ?? '–')) + '</td>').join('') +
+      vehicleRecords.map(v => '<tr' + (vehicleDueDates(v).length ? ' class="vehicle-due-row"' : '') + '>' + headers.map(([key]) => '<td data-label="' + headers.find(h=>h[0]===key)[1] + '">' + (['last_hu_au','next_hu_au','last_oil_change','next_oil_change','last_tire_change','last_repair','odometer_date'].includes(key) ? formatVehicleDate(v[key]) : escapeHtml(v[key] ?? '–')) + '</td>').join('') +
       '<td data-label="Aktionen"><div class="row"><button type="button" class="secondary smallbtn" data-edit-vehicle-record="' + v.id + '">Bearbeiten</button><button type="button" class="danger smallbtn" data-delete-vehicle-record="' + v.id + '">Löschen</button></div></td></tr>').join('') + '</tbody></table></div>';
   }
   function resetVehicleRecordForm() {
