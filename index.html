@@ -442,6 +442,85 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td { color:#
  body.dark-mode #maintenanceTable tbody tr.maintenance-due,
  body.dark-mode #maintenanceTable tbody tr.maintenance-overdue { background:#1f2937 !important; }
 }
+
+/* GEBA Wartung: einheitlicher Tabellenhintergrund und dauerhaft neu berechnete Statusfarben */
+#maintenanceTable tbody tr,
+#maintenanceTable tbody tr:nth-child(odd),
+#maintenanceTable tbody tr:nth-child(even),
+#maintenanceTable tbody tr:hover {
+  background: #ffffff !important;
+}
+#maintenanceTable tbody tr td,
+#maintenanceTable tbody tr:hover td {
+  background: #ffffff !important;
+  color: #263445 !important;
+}
+#maintenanceTable tbody tr.maintenance-completed td,
+#maintenanceTable tbody tr.maintenance-completed:hover td {
+  color: #16803a !important;
+  background: #ffffff !important;
+  font-weight: 800 !important;
+}
+#maintenanceTable tbody tr.maintenance-due td,
+#maintenanceTable tbody tr.maintenance-due:hover td {
+  color: #d69e00 !important;
+  background: #ffffff !important;
+  font-weight: 800 !important;
+}
+#maintenanceTable tbody tr.maintenance-overdue td,
+#maintenanceTable tbody tr.maintenance-overdue:hover td {
+  color: #dc2626 !important;
+  background: #ffffff !important;
+  font-weight: 800 !important;
+}
+/* Feldbeschriftungen und Aktionsbuttons behalten ihre eigene Gestaltung. */
+#maintenanceTable tbody tr.maintenance-completed td::before,
+#maintenanceTable tbody tr.maintenance-due td::before,
+#maintenanceTable tbody tr.maintenance-overdue td::before {
+  color: #526273 !important;
+}
+#maintenanceTable tbody td button,
+#maintenanceTable tbody td .contract-yes,
+#maintenanceTable tbody td .contract-no,
+#maintenanceTable tbody td .accepted-yes,
+#maintenanceTable tbody td .accepted-no {
+  font-weight: 800;
+}
+body.dark-mode #maintenanceTable tbody tr,
+body.dark-mode #maintenanceTable tbody tr:nth-child(odd),
+body.dark-mode #maintenanceTable tbody tr:nth-child(even),
+body.dark-mode #maintenanceTable tbody tr:hover {
+  background: #1f2937 !important;
+}
+body.dark-mode #maintenanceTable tbody tr td,
+body.dark-mode #maintenanceTable tbody tr:hover td {
+  background: #1f2937 !important;
+  color: #e5e7eb !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-completed td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-completed:hover td {
+  color: #4ade80 !important;
+  background: #1f2937 !important;
+  font-weight: 800 !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-due td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-due:hover td {
+  color: #facc15 !important;
+  background: #1f2937 !important;
+  font-weight: 800 !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td,
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue:hover td {
+  color: #f87171 !important;
+  background: #1f2937 !important;
+  font-weight: 800 !important;
+}
+body.dark-mode #maintenanceTable tbody tr.maintenance-completed td::before,
+body.dark-mode #maintenanceTable tbody tr.maintenance-due td::before,
+body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
+  color: #aebdce !important;
+}
+
 </style>
 </head>
 <body>
