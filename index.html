@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0078D4">
 <title>GEBA-APP</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -306,7 +307,8 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
         </form>
       </section>
       <section class="panel">
-        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3><div class="row" style="align-items:center"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="due">Nur fällige</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div></div>
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3><div class="row" style="align-items:center;flex-wrap:wrap"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="due">Nur fällige</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0 12px"><button type="button" id="maintenanceImportBtn" class="secondary smallbtn">↑ Excel importieren</button><input type="file" id="maintenanceImportFile" accept=".xlsx,.xls,.csv" class="hidden"><button type="button" id="maintenanceExportBtn" class="secondary smallbtn">↓ Excel exportieren</button><span class="muted" style="font-size:12px">Import aktualisiert vorhandene Kunden und ergänzt neue Einträge.</span></div>
         <p id="maintenanceDueHint" class="muted" style="margin:6px 0 12px">Fälligkeiten für den aktuellen Monat.</p>
         <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
       </section>
@@ -2881,6 +2883,113 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     await loadMaintenanceCustomers(); notify('Wartungskunde gelöscht.');
   }
 
+
+  function maintenanceExcelDate(value){
+    if(value==null||value==='')return null;
+    if(value instanceof Date && !isNaN(value))return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+    if(typeof value==='number' && window.XLSX && XLSX.SSF){
+      const d=XLSX.SSF.parse_date_code(value); if(d)return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    }
+    const str=String(value).trim();
+    let m=str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    return /^\d{4}-\d{2}-\d{2}$/.test(str)?str:null;
+  }
+  function maintenanceExcelText(value){
+    if(value==null)return '';
+    if(value instanceof Date && !isNaN(value))return `${String(value.getDate()).padStart(2,'0')}.${String(value.getMonth()+1).padStart(2,'0')}.${value.getFullYear()}`;
+    return String(value).trim();
+  }
+  function maintenanceNormalizeYesNo(value){
+    const v=String(value??'').trim().toLowerCase();
+    if(!v)return null;
+    if(['x','ja','yes','wahr','true','1'].includes(v))return 'ja';
+    if(['nein','no','falsch','false','0'].includes(v))return 'nein';
+    return v;
+  }
+  function maintenanceIdentity(row){
+    return [row.binder,row.maintenance_number,row.customer].map(v=>String(v||'').trim().toLowerCase()).join('|');
+  }
+  async function importMaintenanceExcel(file){
+    if(!file)return;
+    if(!window.XLSX)return notify('Excel-Import ist nicht verfügbar. Bitte Seite neu laden.',true);
+    try{
+      const buffer=await file.arrayBuffer();
+      const book=XLSX.read(buffer,{type:'array',cellDates:true});
+      const sheetName=book.SheetNames.find(n=>/wartung jahresplan 2026/i.test(n))||book.SheetNames.find(n=>/wartung jahresplan/i.test(n))||book.SheetNames[0];
+      const sheet=book.Sheets[sheetName];
+      const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
+      const headerIndex=matrix.findIndex(row=>row.some(v=>String(v||'').trim().toLowerCase()==='wartungskunde'));
+      if(headerIndex<0)throw new Error('Keine Spalte „Wartungskunde“ gefunden.');
+      const header=matrix[headerIndex].map(v=>String(v||'').trim().toLowerCase());
+      const col=(name)=>header.findIndex(h=>h===name.toLowerCase());
+      const cBinder=col('hefter'),cNumber=header.findIndex(h=>h.startsWith('w-nr')),cCustomer=col('wartungskunde');
+      const cPrice=header.findIndex(h=>h.startsWith('preis letzte abrechnung'));
+      const cContract=header.findIndex(h=>h.startsWith('wartungs-vertrag')||h==='wartungsvertrag');
+      const cDone=col('erledigt');
+      const cLastBilling=col('letzte abrechnung');
+      const cAdjustment=header.findIndex(h=>h.startsWith('preisanpassung')&&!h.includes('akzeptiert'));
+      const cAccepted=header.findIndex(h=>h.includes('preisanpassung akzeptiert'));
+      const monthHeaders=['jan','feb','mär','apr','mai','jun','jul','aug','sep','okt','nov','dez'];
+      const monthKeys=maintenanceMonths.map(x=>x[1]);
+      let lastBinder='';
+      const imported=[];
+      for(let r=headerIndex+1;r<matrix.length;r++){
+        const row=matrix[r]||[];
+        if(cBinder>=0&&row[cBinder]!=null&&String(row[cBinder]).trim()!=='')lastBinder=maintenanceExcelText(row[cBinder]);
+        const customer=String(row[cCustomer]??'').trim();
+        if(!customer)continue;
+        if(['wartung','dichtheitsprüfung','reinigung / desinfektion','keine bedeutung (platzhalter)'].includes(customer.toLowerCase()))continue;
+        const months={};
+        monthHeaders.forEach((h,i)=>{
+          const ci=header.findIndex(x=>x===h||x.startsWith(h+'.'));
+          if(ci>=0&&row[ci]!=null&&String(row[ci]).trim()!=='')months[monthKeys[i]]=maintenanceExcelText(row[ci]);
+        });
+        const priceValue=cPrice>=0?row[cPrice]:null;
+        const payload={
+          binder:lastBinder,
+          maintenance_number:cNumber>=0?maintenanceExcelText(row[cNumber]):'',
+          customer,months,
+          price:priceValue==null||priceValue===''?null:(Number(String(priceValue).replace(',','.'))||0),
+          last_billing:maintenanceExcelDate(cLastBilling>=0?row[cLastBilling]:null),
+          contract:maintenanceNormalizeYesNo(cContract>=0?row[cContract]:null),
+          completed_at:maintenanceExcelDate(cDone>=0?row[cDone]:null),
+          price_adjustment:cAdjustment>=0?maintenanceExcelText(row[cAdjustment]):'',
+          adjustment_accepted:maintenanceNormalizeYesNo(cAccepted>=0?row[cAccepted]:null)
+        };
+        imported.push(payload);
+      }
+      if(!imported.length)throw new Error('In der ausgewählten Tabelle wurden keine Wartungskunden gefunden.');
+      const {data:existing,error:loadError}=await client.from('maintenance_customers').select('id,binder,maintenance_number,customer');
+      if(loadError)throw loadError;
+      const byIdentity=new Map((existing||[]).map(x=>[maintenanceIdentity(x),x.id]));
+      const deduped=new Map();
+      imported.forEach(row=>deduped.set(maintenanceIdentity(row),row));
+      const rows=[...deduped.values()].map(row=>({...row,...(byIdentity.has(maintenanceIdentity(row))?{id:byIdentity.get(maintenanceIdentity(row))}:{})}));
+      if(!confirm(`${rows.length} Wartungskunden aus „${sheetName}“ importieren?\nVorhandene Kunden werden anhand von Hefter, W-Nr. und Kundenname aktualisiert. Neue Kunden werden ergänzt.`))return;
+      for(let i=0;i<rows.length;i+=100){
+        const {error}=await client.from('maintenance_customers').upsert(rows.slice(i,i+100));
+        if(error)throw error;
+      }
+      await loadMaintenanceCustomers();
+      notify(`${rows.length} Wartungskunden wurden importiert bzw. aktualisiert.`);
+    }catch(err){notify('Excel-Import fehlgeschlagen: '+(err.message||err),true);}
+    finally{$('maintenanceImportFile').value='';}
+  }
+  function exportMaintenanceExcel(){
+    if(!window.XLSX)return notify('Excel-Export ist nicht verfügbar. Bitte Seite neu laden.',true);
+    const rows=[['Hefter','W-Nr.','Wartungskunde','Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez','Preis letzte Abrechnung Netto','Wartungs-vertrag','erledigt','Preisanpassung ab 2026','Preisanpassung akzeptiert','Letzte Abrechnung']];
+    maintenanceRows.forEach(r=>{
+      const m=r.months||{};
+      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',...maintenanceMonths.map(x=>m[x[1]]||''),r.price??'',r.contract==='ja'?'X':r.contract==='nein'?'Nein':(r.contract||''),r.completed_at||'',r.price_adjustment||'',r.adjustment_accepted==='ja'?'X':r.adjustment_accepted==='nein'?'Nein':(r.adjustment_accepted||''),r.last_billing||'']);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!freeze']={xSplit:3,ySplit:1};
+    ws['!cols']=[{wch:10},{wch:14},{wch:42},...Array(12).fill({wch:10}),{wch:20},{wch:16},{wch:14},{wch:22},{wch:24},{wch:18}];
+    const book=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book,ws,'Wartungsliste');
+    XLSX.writeFile(book,`GEBA_Wartungsliste_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
   function showMainView(view) {
     if (currentRole === 'monteur' && view !== 'fleet' && view !== 'maintenance') view = 'fleet';
     hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('maintenanceView');
@@ -2896,6 +3005,9 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   $('maintenanceHomeBtn').onclick = () => showMainView('home');
   $('maintenanceRefreshBtn').onclick = loadMaintenanceCustomers;
   $('maintenanceDueFilter').onchange = renderMaintenanceCustomers;
+  $('maintenanceImportBtn').onclick = () => $('maintenanceImportFile').click();
+  $('maintenanceImportFile').addEventListener('change', e => importMaintenanceExcel(e.target.files?.[0]));
+  $('maintenanceExportBtn').onclick = exportMaintenanceExcel;
   $('maintenanceForm').addEventListener('submit', saveMaintenanceCustomer);
   $('maintenanceCancelBtn').onclick = resetMaintenanceForm;
   $('maintenanceTableWrap').addEventListener('click', e => {
