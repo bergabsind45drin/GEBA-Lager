@@ -626,7 +626,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     // Bilder werden erst beim Öffnen eines einzelnen Artikels nachgeladen.
     const [p, m, ti, t] = await Promise.all([
       client.from('products')
-        .select('id,name,sku,barcode,quantity,unit,min_quantity,location')
+        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location')
         .order('name').limit(1001),
       client.from('stock_movements')
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
@@ -1728,9 +1728,13 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
           <input id="fMin" type="number" min="0" step="any" value="${Number(p.min_quantity || 0)}">
         </div>
         <div class="field" style="flex:1">
-          <label>Lagerort</label>
-          <input id="fLoc" value="${escapeHtml(p.location || '')}" placeholder="Regal A, Fach 2">
+          <label>Zielbestand</label>
+          <input id="fTarget" type="number" min="0" step="any" value="${Number(p.target_quantity ?? p.min_quantity ?? 0)}">
         </div>
+      </div>
+      <div class="field">
+        <label>Lagerort</label>
+        <input id="fLoc" value="${escapeHtml(p.location || '')}" placeholder="Regal A, Fach 2">
       </div>
       <button id="saveProduct" style="width:100%">Speichern</button>
       <div id="formMsg" class="muted" style="margin-top:8px"></div>
@@ -1849,14 +1853,19 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       quantity: Number($('fQty').value || 0),
       unit: $('fUnit').value.trim() || 'Stück',
       min_quantity: Number($('fMin').value || 0),
+      target_quantity: Number($('fTarget').value || 0),
       location: $('fLoc').value.trim() || null,
       image_data: editingImageData[0],
       image_data_2: editingImageData[1],
       image_data_3: editingImageData[2]
     };
 
-    if (data.quantity < 0 || data.min_quantity < 0) {
+    if (data.quantity < 0 || data.min_quantity < 0 || data.target_quantity < 0) {
       $('formMsg').textContent = 'Bestände dürfen nicht negativ sein.';
+      return;
+    }
+    if (data.target_quantity < data.min_quantity) {
+      $('formMsg').textContent = 'Der Zielbestand muss mindestens so hoch wie der Mindestbestand sein.';
       return;
     }
 
@@ -2111,9 +2120,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
 
   function exportCsv() {
     const rows = [
-      ['name', 'sku', 'barcode', 'quantity', 'unit', 'min_quantity', 'location'],
+      ['name', 'sku', 'barcode', 'quantity', 'unit', 'min_quantity', 'target_quantity', 'location'],
       ...products.map(p => [
-        p.name, p.sku, p.barcode, p.quantity, p.unit, p.min_quantity, p.location
+        p.name, p.sku, p.barcode, p.quantity, p.unit, p.min_quantity, p.target_quantity ?? p.min_quantity, p.location
       ])
     ];
 
@@ -2135,7 +2144,9 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     products.forEach(product => {
       const current = Number(product.quantity || 0);
       const minimum = Number(product.min_quantity || 0);
-      const toOrder = Math.max(0, minimum - current);
+      const target = Number(product.target_quantity ?? minimum);
+      // Nur bei erreichtem Mindestbestand auslösen, dann exakt bis zum Zielbestand auffüllen.
+      const toOrder = current <= minimum ? Math.max(0, target - current) : 0;
       if (!(toOrder > 0)) return;
       const manufacturer = manufacturerFromSku(product.sku);
       if (!groups.has(manufacturer)) groups.set(manufacturer, []);
@@ -2189,7 +2200,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
         </tbody></table></div>
       </section>`).join('');
     openModal('Bestellliste nach Hersteller', `
-      <p class="muted">Die Bestellmenge ergibt sich aus Mindestbestand minus aktuellem Bestand. Jeder Hersteller erhält einen eigenen Bestelltext.</p>
+      <p class="muted">Sobald der Bestand den Mindestbestand erreicht oder unterschreitet, wird exakt bis zum individuell festgelegten Zielbestand aufgefüllt. Jeder Hersteller erhält eine eigene Bestelltabelle.</p>
       <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
       ${groupHtml}
     `);
@@ -2272,6 +2283,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
     const qi = idx('quantity', 'bestand', 'menge');
     const ui = idx('unit', 'einheit');
     const mi = idx('min_quantity', 'mindestbestand', 'minbestand');
+    const tqi = idx('target_quantity', 'zielbestand', 'sollbestand');
     const li = idx('location', 'lagerort');
 
     if (ni < 0) {
@@ -2286,6 +2298,7 @@ body.dark-mode .product-thumb,body.dark-mode .image-preview{border-color:#475569
       quantity: qi >= 0 ? Number(String(r[qi] || '0').replace(',', '.')) : 0,
       unit: ui >= 0 ? (r[ui] || 'Stück').trim() : 'Stück',
       min_quantity: mi >= 0 ? Number(String(r[mi] || '0').replace(',', '.')) : 0,
+      target_quantity: tqi >= 0 ? Number(String(r[tqi] || '0').replace(',', '.')) : (mi >= 0 ? Number(String(r[mi] || '0').replace(',', '.')) : 0),
       location: li >= 0 ? (r[li] || '').trim() || null : null
     })).filter(x => x.name);
 
