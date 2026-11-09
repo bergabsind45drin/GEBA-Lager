@@ -403,7 +403,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
       </section>
       <section class="panel">
         <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap"><h3>Wartungskunden</h3><div class="row" style="align-items:center;flex-wrap:wrap"><label for="maintenanceDueFilter">Anzeige</label><select id="maintenanceDueFilter" class="smallbtn"><option value="all">Alle Kunden</option><option value="due">Nur fällige</option></select><label for="maintenanceSort">Sortierung</label><select id="maintenanceSort" class="smallbtn"><option value="number-asc">Hefter / W-Nr. aufsteigend</option><option value="number-desc">Hefter / W-Nr. absteigend</option><option value="customer-asc">Wartungskunde A–Z</option><option value="customer-desc">Wartungskunde Z–A</option><option value="price-asc">Preis aufsteigend</option><option value="price-desc">Preis absteigend</option><option value="binder-asc">Hefter aufsteigend</option><option value="binder-desc">Hefter absteigend</option></select><span id="maintenanceCount" class="pill">0 Kunden</span></div></div>
-        <div class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0 12px"><label for="maintenanceSearch">Suche</label><input id="maintenanceSearch" type="search" placeholder="Hefter, W-Nr. oder Wartungskunde suchen …" style="flex:1;min-width:220px"><button type="button" id="maintenanceImportBtn" class="secondary smallbtn">↑ Excel importieren</button><input type="file" id="maintenanceImportFile" accept=".xlsx,.xls,.csv" class="hidden"><button type="button" id="maintenanceExportBtn" class="secondary smallbtn">↓ Excel exportieren</button><button type="button" id="maintenanceClearListBtn" class="danger smallbtn hidden">Liste vollständig löschen</button><span class="muted" style="font-size:12px">Import aktualisiert vorhandene Kunden und ergänzt neue Einträge.</span></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0 12px"><label for="maintenanceSearch">Suche</label><input id="maintenanceSearch" type="search" placeholder="Hefter, W-Nr. oder Wartungskunde suchen …" style="flex:1;min-width:220px"><button type="button" id="maintenanceImportBtn" class="secondary smallbtn">↑ Excel importieren</button><input type="file" id="maintenanceImportFile" accept=".xlsx,.xls,.csv" class="hidden"><button type="button" id="maintenanceExportBtn" class="secondary smallbtn">↓ Excel exportieren</button><button type="button" id="maintenanceClearListBtn" class="danger smallbtn" style="display:none">🗑 Liste vollständig löschen</button><span class="muted" style="font-size:12px">Import aktualisiert vorhandene Kunden und ergänzt neue Einträge.</span></div>
         <p id="maintenanceDueHint" class="muted" style="margin:6px 0 12px">Fälligkeiten für den aktuellen Monat.</p>
         <div id="maintenanceTableWrap" class="table-wrap"><p class="muted">Wartungskunden werden geladen …</p></div>
       </section>
@@ -1717,7 +1717,12 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     renderTools();
     if (typeof renderVehicleRecords === 'function' && $('vehicleRecordsList')) renderVehicleRecords();
     renderToolBookings();
-    if ($('maintenanceClearListBtn')) $('maintenanceClearListBtn').classList.toggle('hidden', !enabled);
+    const clearListButton = $('maintenanceClearListBtn');
+    if (clearListButton) {
+      // Sichtbarkeit unabhängig von der CSS-hidden-Klasse steuern.
+      clearListButton.classList.remove('hidden');
+      clearListButton.style.display = (enabled && currentRole === 'office') ? 'inline-flex' : 'none';
+    }
     if ($('maintenanceTableWrap')) {
       // Die Wartungsliste sofort an den neuen Editor-Status anpassen.
       // Zusätzlich direkt die bereits vorhandenen Aktionszeilen aktualisieren,
@@ -3141,7 +3146,12 @@ Bestehende Preise bleiben erhalten, da keine Preis-Spalte angegeben ist.`))retur
     else show('homeView');
     window.scrollTo(0, 0);
   }
-  $('openMaintenanceBtn').onclick = async () => { showMainView('maintenance'); await loadMaintenanceCustomers(); };
+  $('openMaintenanceBtn').onclick = async () => {
+    showMainView('maintenance');
+    const clearListButton = $('maintenanceClearListBtn');
+    if (clearListButton) clearListButton.style.display = (editorMode && currentRole === 'office') ? 'inline-flex' : 'none';
+    await loadMaintenanceCustomers();
+  };
   $('maintenanceHomeBtn').onclick = () => showMainView('home');
   $('maintenanceRefreshBtn').onclick = loadMaintenanceCustomers;
   $('maintenanceDueFilter').onchange = renderMaintenanceCustomers;
