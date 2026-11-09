@@ -521,6 +521,15 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   color: #aebdce !important;
 }
 
+
+/* GEBA-Farbfix: Statusfarben direkt nach jedem Rendern gesetzt und gegen Hover abgesichert. */
+#maintenanceTable tbody tr:hover td { transition:none !important; }
+@media (max-width:850px) {
+  #maintenanceTable tbody tr td::before { color:#526273 !important; }
+  html.dark-mode #maintenanceTable tbody tr td::before,
+  body.dark-mode #maintenanceTable tbody tr td::before { color:#aebdce !important; }
+}
+
 </style>
 </head>
 <body>
@@ -3258,6 +3267,28 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(maintenanceDisplayDate(maintenanceCompletedForYear(r))||'–'),escapeHtml(r.price_adjustment||'–'),escapeHtml(r.months?.notes||'–'),'<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
       return '<tr class="'+rowStatus+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
     }).join('')+'</tbody></table>';
+    applyMaintenanceRowColors();
+  }
+  function applyMaintenanceRowColors(){
+    const table = $('maintenanceTable');
+    if(!table) return;
+    const dark = document.documentElement.classList.contains('dark-mode') || document.body.classList.contains('dark-mode');
+    const background = dark ? '#1f2937' : '#ffffff';
+    const colors = {
+      'maintenance-completed': dark ? '#4ade80' : '#16803a',
+      'maintenance-due': dark ? '#facc15' : '#b77900',
+      'maintenance-overdue': dark ? '#f87171' : '#dc2626'
+    };
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      const status = Object.keys(colors).find(cls => tr.classList.contains(cls));
+      const color = status ? colors[status] : (dark ? '#e5e7eb' : '#263445');
+      tr.style.setProperty('background-color', background, 'important');
+      tr.querySelectorAll('td').forEach(td => {
+        td.style.setProperty('color', color, 'important');
+        td.style.setProperty('background-color', background, 'important');
+        td.style.setProperty('font-weight', status ? '800' : '400', 'important');
+      });
+    });
   }
   function resetMaintenanceForm(){
     $('maintenanceForm').reset(); $('maintenanceId').value=''; $('maintenanceFormTitle').textContent='Wartungskunde anlegen'; $('maintenanceSaveBtn').textContent='＋ Wartungskunde speichern'; hide('maintenanceCancelBtn');
