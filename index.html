@@ -65,9 +65,10 @@ th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 h2{margin:0 0 12px;font-size:1.15rem}
 .smallbtn{padding:7px 10px;border-radius:9px;font-size:.85rem}
 .order-btn{background:#fff1b8;color:#705300;border:1px solid #e5ca68;white-space:normal}
-.export-actions{min-width:0;gap:8px;flex-wrap:nowrap}
-.export-actions button{flex:1;min-width:0;padding-left:10px;padding-right:10px}
-@media(max-width:700px){.export-actions{grid-column:1/-1}.export-actions button{font-size:.84rem;padding:10px 8px}}
+.actions > .export-actions{grid-column:span 2}
+.export-actions{display:grid;width:100%;min-width:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}
+.export-actions button{width:100%;min-width:0;min-height:72px;height:100%;padding-left:10px;padding-right:10px}
+@media(max-width:700px){.actions > .export-actions{grid-column:1/-1}.export-actions button{font-size:.84rem;padding:10px 8px}}
 body.dark-mode .order-btn{background:#5b4a18!important;color:#fff0b3!important;border-color:#8b7228!important}
 .modal{position:fixed;inset:0;background:#10231dcc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
 .modal-card{background:white;border-radius:18px;padding:20px;width:min(500px,100%);max-height:90vh;overflow:auto}
