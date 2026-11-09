@@ -221,6 +221,90 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
  #maintenanceTable tr.maintenance-due td{background:#fff9e8!important}
  #maintenanceTable td .row{justify-content:flex-end}
 }
+
+/* Wartung: Desktop-Tabelle über die gesamte Bildschirmbreite, ohne Zebra-Streifen */
+@media (min-width: 851px) {
+  #maintenanceView {
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 36px);
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  #maintenanceTableWrap {
+    width: 100%;
+    overflow: visible !important;
+  }
+  #maintenanceTable {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 13px !important;
+  }
+  #maintenanceTable th,
+  #maintenanceTable td {
+    padding: 11px 9px !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    overflow-wrap: break-word;
+    word-break: normal;
+    vertical-align: middle;
+  }
+  #maintenanceTable th {
+    background: #e8eef5 !important;
+    color: #1f2937 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    border-bottom: 2px solid #c7d2df !important;
+  }
+  /* Alle normalen Zeilen erhalten exakt dieselbe Hintergrundfarbe. */
+  #maintenanceTable tbody tr:not(.maintenance-due) td,
+  #maintenanceTable tbody tr:not(.maintenance-due):nth-child(even) td,
+  #maintenanceTable tbody tr:not(.maintenance-due):nth-child(odd) td {
+    background: #ffffff !important;
+    color: #263445;
+    border-bottom: 1px solid #dce3eb !important;
+  }
+  #maintenanceTable tbody tr:hover td {
+    background: #f3f7fb !important;
+  }
+  #maintenanceTable th:nth-child(1) { width: 5%; }
+  #maintenanceTable th:nth-child(2) { width: 7%; }
+  #maintenanceTable th:nth-child(3) { width: 17%; }
+  #maintenanceTable th:nth-child(4) { width: 8%; }
+  #maintenanceTable th:nth-child(5) { width: 7%; }
+  #maintenanceTable th:nth-child(6) { width: 9%; }
+  #maintenanceTable th:nth-child(7) { width: 8%; }
+  #maintenanceTable th:nth-child(8) { width: 8%; }
+  #maintenanceTable th:nth-child(9) { width: 9%; }
+  #maintenanceTable th:nth-child(10) { width: 11%; }
+  #maintenanceTable th:nth-child(11) { width: 11%; }
+  #maintenanceTable td .row { gap: 6px; }
+  #maintenanceTable td button.smallbtn {
+    font-size: 12px !important;
+    padding: 7px 9px !important;
+  }
+  body.dark-mode #maintenanceTable tbody tr:not(.maintenance-due) td,
+  body.dark-mode #maintenanceTable tbody tr:not(.maintenance-due):nth-child(even) td,
+  body.dark-mode #maintenanceTable tbody tr:not(.maintenance-due):nth-child(odd) td {
+    background: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-bottom-color: #374151 !important;
+  }
+  body.dark-mode #maintenanceTable tbody tr:hover td {
+    background: #293548 !important;
+  }
+  body.dark-mode #maintenanceTable th {
+    background: #334155 !important;
+    color: #f1f5f9 !important;
+    border-bottom-color: #475569 !important;
+  }
+}
+
 </style>
 </head>
 <body>
