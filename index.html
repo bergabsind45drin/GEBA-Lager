@@ -1717,7 +1717,30 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     renderTools();
     if (typeof renderVehicleRecords === 'function' && $('vehicleRecordsList')) renderVehicleRecords();
     renderToolBookings();
-    if ($('maintenanceTableWrap')) renderMaintenanceCustomers();
+    if ($('maintenanceTableWrap')) {
+      // Die Wartungsliste sofort an den neuen Editor-Status anpassen.
+      // Zusätzlich direkt die bereits vorhandenen Aktionszeilen aktualisieren,
+      // damit die Löschen-Schaltfläche ohne Listen-Refresh sichtbar wird.
+      renderMaintenanceCustomers();
+      const maintenanceTable = $('maintenanceTable');
+      if (maintenanceTable) {
+        maintenanceTable.querySelectorAll('[data-edit-maintenance]').forEach(editButton => {
+          const actions = editButton.parentElement;
+          const id = editButton.dataset.editMaintenance;
+          const existingDelete = actions.querySelector('[data-delete-maintenance]');
+          if (enabled && !existingDelete) {
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'danger smallbtn';
+            deleteButton.dataset.deleteMaintenance = id;
+            deleteButton.textContent = 'Löschen';
+            actions.appendChild(deleteButton);
+          } else if (!enabled && existingDelete) {
+            existingDelete.remove();
+          }
+        });
+      }
+    }
     notify(enabled ? 'Editor-Modus aktiviert.' : 'Editor-Modus beendet.');
   }
 
