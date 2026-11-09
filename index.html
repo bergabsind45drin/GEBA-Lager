@@ -392,11 +392,10 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
           <div class="field"><label for="maintenanceNumber">W-Nr.</label><input id="maintenanceNumber" placeholder="Wartungsnummer"></div>
           <div class="field wide"><label for="maintenanceCustomer">Wartungskunde</label><input id="maintenanceCustomer" required placeholder="Name des Kunden"></div>
           <div class="field"><label for="maintenancePrice">Preis (€)</label><input id="maintenancePrice" type="number" min="0" step="0.01" placeholder="0,00"></div>
-          <div class="field"><label for="maintenanceLastBilling">Letzte Abrechnung</label><input id="maintenanceLastBilling" type="date"></div>
           <div class="field"><label for="maintenanceContract">Wartungsvertrag</label><select id="maintenanceContract"><option value="">Bitte wählen</option><option value="ja">Ja</option><option value="nein">Nein</option></select></div>
           <div class="field"><label for="maintenanceDone">Erledigt am</label><input id="maintenanceDone" type="date"></div>
           <div class="field"><label for="maintenanceAdjustment">Preisanpassung</label><input id="maintenanceAdjustment" placeholder="z. B. 5 % ab 01.01."></div>
-          <div class="field"><label for="maintenanceAccepted">Preisanpassung akzeptiert</label><select id="maintenanceAccepted"><option value="">Bitte wählen</option><option value="ja">Ja</option><option value="nein">Nein</option></select></div>
+          <div class="field"><label for="maintenanceNotes">Notizen</label><input id="maintenanceNotes" placeholder="Notizen eingeben"></div>
           <div class="field"><label for="maintenanceDueDate">Fälligkeitsdatum</label><input id="maintenanceDueDate" type="text" inputmode="numeric" placeholder="z. B. 20.11" pattern="^([0-3]?\d)\.([01]?\d)(\.\d{4})?$" title="Bitte als TT.MM oder TT.MM.JJJJ eingeben, z. B. 20.11"></div>
           <div class="wide row"><button type="submit" id="maintenanceSaveBtn">＋ Wartungskunde speichern</button><button type="button" id="maintenanceCancelBtn" class="secondary hidden">Abbrechen</button></div>
         </form>
@@ -2976,7 +2975,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     const onlyDue=$('maintenanceDueFilter').value==='due';
     const sortMode=$('maintenanceSort')?.value||'number-asc';
     const search=String($('maintenanceSearch')?.value||'').trim().toLocaleLowerCase('de');
-    const visibleRows=maintenanceRows.filter(r=>(!onlyDue||maintenanceDueThisMonth(r))&&(!search||[r.binder,r.maintenance_number,r.customer,r.last_billing,r.contract,r.completed_at,r.price_adjustment,r.adjustment_accepted].some(v=>String(v??'').toLocaleLowerCase('de').includes(search)))).sort((a,b)=>{
+    const visibleRows=maintenanceRows.filter(r=>(!onlyDue||maintenanceDueThisMonth(r))&&(!search||[r.binder,r.maintenance_number,r.customer,r.contract,r.completed_at,r.price_adjustment,r.months?.notes].some(v=>String(v??'').toLocaleLowerCase('de').includes(search)))).sort((a,b)=>{
       if(sortMode==='customer-asc'||sortMode==='customer-desc'){
         const result=String(a.customer||'').localeCompare(String(b.customer||''),'de',{sensitivity:'base'});
         return sortMode==='customer-desc'?-result:result;
@@ -2997,11 +2996,11 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     });
     $('maintenanceCount').textContent=visibleRows.length+' von '+maintenanceRows.length+' Kunden';
     if(!visibleRows.length){$('maintenanceTableWrap').innerHTML='<p class="muted">'+(onlyDue?'Im aktuellen Monat ist kein Kunde fällig.':'Noch keine Wartungskunden angelegt.')+'</p>';return;}
-    const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Letzte Abrechnung','Wartungsvertrag','Erledigt am','Preisanpassung','Preisanpassung akzeptiert','Aktionen'];
+    const headers=['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungsvertrag','Erledigt am','Preisanpassung','Notizen','Aktionen'];
     const labels=headers;
     $('maintenanceTableWrap').innerHTML='<table id="maintenanceTable"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+visibleRows.map(r=>{
       const due=maintenanceDueThisMonth(r); const dueDate=maintenanceDueDateValue(r);
-      const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),escapeHtml(r.last_billing||'–'),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(r.completed_at||'–'),escapeHtml(r.price_adjustment||'–'),'<span class="'+(r.adjustment_accepted==='ja'?'accepted-yes':r.adjustment_accepted==='nein'?'accepted-no':'')+'">'+escapeHtml(r.adjustment_accepted||'–')+'</span>','<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
+      const cells=[escapeHtml(r.binder||'–'),escapeHtml(r.maintenance_number||'–'),'<strong>'+escapeHtml(r.customer)+'</strong>',escapeHtml(dueDate?.text||'–'),(r.price==null?'–':Number(r.price).toLocaleString('de-DE',{style:'currency',currency:'EUR'})),'<span class="'+(r.contract==='ja'?'contract-yes':r.contract==='nein'?'contract-no':'')+'">'+escapeHtml(r.contract||'–')+'</span>',escapeHtml(maintenanceDisplayDate(r.completed_at)||'–'),escapeHtml(r.price_adjustment||'–'),escapeHtml(r.months?.notes||'–'),'<div class="row"><button type="button" class="secondary smallbtn" data-edit-maintenance="'+r.id+'">Bearbeiten</button>'+(editorMode?'<button type="button" class="danger smallbtn" data-delete-maintenance="'+r.id+'">Löschen</button>':'')+'</div>'];
       return '<tr class="'+(due?'maintenance-due':'')+'">'+cells.map((cell,i)=>'<td data-label="'+labels[i]+'">'+cell+'</td>').join('')+'</tr>';
     }).join('')+'</tbody></table>';
   }
@@ -3011,7 +3010,7 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   function editMaintenanceCustomer(id){
     const r=maintenanceRows.find(x=>String(x.id)===String(id)); if(!r)return;
     $('maintenanceId').value=r.id; $('maintenanceBinder').value=r.binder||''; $('maintenanceNumber').value=r.maintenance_number||''; $('maintenanceCustomer').value=r.customer||'';
-    $('maintenancePrice').value=r.price??''; $('maintenanceLastBilling').value=r.last_billing||''; $('maintenanceContract').value=r.contract||''; $('maintenanceDone').value=r.completed_at||''; $('maintenanceAdjustment').value=r.price_adjustment||''; $('maintenanceAccepted').value=r.adjustment_accepted||'';
+    $('maintenancePrice').value=r.price??''; $('maintenanceContract').value=r.contract||''; $('maintenanceDone').value=r.completed_at||''; $('maintenanceAdjustment').value=r.price_adjustment||''; $('maintenanceNotes').value=r.months?.notes||'';
     $('maintenanceDueDate').value=maintenanceDueDateValue(r)?.text||'';
     $('maintenanceFormTitle').textContent='Wartungskunde bearbeiten'; $('maintenanceSaveBtn').textContent='Änderungen speichern'; show('maintenanceCancelBtn'); $('maintenanceForm').scrollIntoView({behavior:'smooth',block:'start'});
   }
@@ -3019,9 +3018,9 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
     event.preventDefault(); if(!currentUser)return notify('Bitte anmelden.',true);
     const dueDateRaw=$('maintenanceDueDate').value.trim();
     if(dueDateRaw && !maintenanceDueDateValue({months:{due_date:dueDateRaw}}))return notify('Bitte das Fälligkeitsdatum als TT.MM oder TT.MM.JJJJ eingeben, z. B. 20.11.',true);
-    const months={due_date:dueDateRaw};
+    const months={...(maintenanceRows.find(x=>String(x.id)===String($('maintenanceId').value))?.months||{}),due_date:dueDateRaw,notes:$('maintenanceNotes').value.trim()};
     const id=$('maintenanceId').value;
-    const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),last_billing:$('maintenanceLastBilling').value||null,contract:$('maintenanceContract').value||null,completed_at:$('maintenanceDone').value||null,price_adjustment:$('maintenanceAdjustment').value.trim(),adjustment_accepted:$('maintenanceAccepted').value||null};
+    const payload={binder:$('maintenanceBinder').value.trim(),maintenance_number:$('maintenanceNumber').value.trim(),customer:$('maintenanceCustomer').value.trim(),months,price:$('maintenancePrice').value===''?null:Number($('maintenancePrice').value),contract:$('maintenanceContract').value||null,completed_at:$('maintenanceDone').value||null,price_adjustment:$('maintenanceAdjustment').value.trim()};
     const result=id?await client.from('maintenance_customers').update(payload).eq('id',id):await client.from('maintenance_customers').insert(payload);
     if(result.error)return notify('Wartungskunde konnte nicht gespeichert werden: '+result.error.message,true);
     resetMaintenanceForm(); await loadMaintenanceCustomers(); notify(id?'Wartungskunde aktualisiert.':'Wartungskunde angelegt.');
@@ -3047,6 +3046,20 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
   }
 
 
+  function maintenanceDisplayDate(value){
+    if(!value)return '';
+    const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m?`${m[3]}.${m[2]}.${m[1]}`:String(value);
+  }
+  function maintenanceExcelMoney(value){
+    if(value==null||value==='')return null;
+    if(typeof value==='number')return Number.isFinite(value)?value:null;
+    let text=String(value).trim().replace(/€|\s/g,'');
+    if(!text)return null;
+    if(text.includes(','))text=text.replace(/\./g,'').replace(',','.');
+    const number=Number(text);
+    return Number.isFinite(number)?number:null;
+  }
   function maintenanceExcelDate(value){
     if(value==null||value==='')return null;
     // Nur echte Kalendertage an die Datenbank übergeben. Excel kennt wegen
@@ -3128,23 +3141,23 @@ body.dark-mode #maintenanceTable input,body.dark-mode #maintenanceTable select{b
         const number=maintenanceExcelRawCellText(sheet,r,1); // B: W-Nr. exakt als Text/Zellwert, niemals Datum
         const customer=maintenanceExcelText(row[2]);     // C: Wartungskunde
         if(!customer)continue;
-        const lastBilling=maintenanceExcelDate(row[3]);  // D: Letzte Abrechnung
+        const price=maintenanceExcelMoney(row[3]);      // D: Preis
         const contract=maintenanceNormalizeYesNo(row[4]); // E: Wartungsvertrag
         const completed=maintenanceExcelDate(row[5]);    // F: Erledigt am
         const adjustment=maintenanceExcelText(row[6]);   // G: Preisanpassung
-        const accepted=maintenanceNormalizeYesNo(row[7]); // H: Preisanpassung akzeptiert
-        imported.push({binder,maintenance_number:number,customer,last_billing:lastBilling,contract,completed_at:completed,price_adjustment:adjustment,adjustment_accepted:accepted});
+        const notes=maintenanceExcelText(row[7]);       // H: Notizen
+        imported.push({binder,maintenance_number:number,customer,price,contract,completed_at:completed,price_adjustment:adjustment,notes});
       }
       if(!imported.length)throw new Error('In den Spalten A-H wurden keine Wartungskunden gefunden.');
       const {data:existing,error:loadError}=await client.from('maintenance_customers').select('id,binder,maintenance_number,customer,price,months');
       if(loadError)throw loadError;
       const existingByIdentity=new Map((existing||[]).map(x=>[maintenanceIdentity(x),x]));
       const deduped=new Map(); imported.forEach(row=>deduped.set(maintenanceIdentity(row),row));
-      const rows=[...deduped.values()].map(row=>{const old=existingByIdentity.get(maintenanceIdentity(row));return {...row,months:old?.months??{due_date:null},price:old?.price??null,...(old?{id:old.id}:{})};});
+      const rows=[...deduped.values()].map(row=>{const old=existingByIdentity.get(maintenanceIdentity(row));const {notes,...record}=row;return {...record,months:{...(old?.months||{due_date:null}),notes},price:row.price,...(old?{id:old.id}:{})};});
       if(!confirm(`${rows.length} Wartungskunden aus „${sheetName}“ importieren?
 
-Die Spalten werden exakt so zugeordnet: A Hefter, B W-Nr., C Wartungskunde, D Letzte Abrechnung, E Wartungsvertrag, F Erledigt am, G Preisanpassung, H Preisanpassung akzeptiert.
-Die Fälligkeit und bestehende Preise bleiben bei vorhandenen Kunden erhalten. Neue Kunden erhalten zunächst keine Fälligkeit und keinen Preis, da dafür keine Spalte in der Importdatei angegeben ist.`))return;
+Die Spalten werden exakt so zugeordnet: A Hefter, B W-Nr., C Wartungskunde, D Preis, E Wartungsvertrag, F Erledigt am, G Preisanpassung, H Notizen.
+Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D übernommen.`))return;
       for(let i=0;i<rows.length;i+=100){const {error}=await client.from('maintenance_customers').upsert(rows.slice(i,i+100));if(error)throw error;}
       await loadMaintenanceCustomers();
       notify(`${rows.length} Wartungskunden wurden importiert bzw. aktualisiert.`);
@@ -3153,10 +3166,10 @@ Die Fälligkeit und bestehende Preise bleiben bei vorhandenen Kunden erhalten. N
   }
   function exportMaintenanceExcel(){
     if(!window.XLSX)return notify('Excel-Export ist nicht verfügbar. Bitte Seite neu laden.',true);
-    const rows=[['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis letzte Abrechnung Netto','Letzte Abrechnung','Wartungs-vertrag','erledigt','Preisanpassung ab 2026','Preisanpassung akzeptiert']];
+    const rows=[['Hefter','W-Nr.','Wartungskunde','Fälligkeitsdatum','Preis','Wartungs-vertrag','Erledigt am','Preisanpassung','Notizen']];
     maintenanceRows.forEach(r=>{
       const dueDate=maintenanceDueDateValue(r);
-      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',dueDate?.text||'',r.price??'',r.last_billing||'',r.contract==='ja'?'X':r.contract==='nein'?'Nein':(r.contract||''),r.completed_at||'',r.price_adjustment||'',r.adjustment_accepted==='ja'?'X':r.adjustment_accepted==='nein'?'Nein':(r.adjustment_accepted||'')]);
+      rows.push([r.binder||'',r.maintenance_number||'',r.customer||'',dueDate?.text||'',r.price??'',r.contract==='ja'?'X':r.contract==='nein'?'Nein':(r.contract||''),maintenanceDisplayDate(r.completed_at),r.price_adjustment||'',r.months?.notes||'']);
     });
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws['!freeze']={xSplit:3,ySplit:1};
