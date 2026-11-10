@@ -1081,7 +1081,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     // Bilder werden erst beim Öffnen eines einzelnen Artikels nachgeladen.
     const [p, m, ti, t] = await Promise.all([
       client.from('products')
-        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location')
+        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location,pack_size,pack_unit')
         .order('name').limit(1001),
       client.from('stock_movements')
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
@@ -2217,6 +2217,21 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
           <input id="fTarget" type="number" min="0" step="any" value="${Number(p.target_quantity ?? p.min_quantity ?? 0)}">
         </div>
       </div>
+      <div class="panel" style="padding:12px;margin:10px 0">
+        <strong>Bestelleinheit</strong>
+        <p class="muted" style="margin:4px 0 10px">Wie viele Lagereinheiten sind in einer Verpackung? Bei Einzelartikeln einfach 1 eintragen.</p>
+        <div class="row">
+          <div class="field" style="flex:1">
+            <label>Inhalt pro Verpackung</label>
+            <input id="fPackSize" type="number" min="0.001" step="any" value="${Number(p.pack_size ?? 1)}" placeholder="z. B. 50">
+          </div>
+          <div class="field" style="flex:1">
+            <label>Verpackungsname</label>
+            <input id="fPackUnit" value="${escapeHtml(p.pack_unit || 'Stück')}" placeholder="Stück, Karton, Paket, Sack">
+          </div>
+        </div>
+        <p class="muted" style="margin:0">Beispiel: Lagerbestand in Stück, 50 Stück pro Karton. Die Bestellliste rundet automatisch auf volle Kartons auf.</p>
+      </div>
       <div class="field">
         <label>Lagerort</label>
         <input id="fLoc" value="${escapeHtml(p.location || '')}" placeholder="Regal A, Fach 2">
@@ -2339,6 +2354,8 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       unit: $('fUnit').value.trim() || 'Stück',
       min_quantity: Number($('fMin').value || 0),
       target_quantity: Number($('fTarget').value || 0),
+      pack_size: Number($('fPackSize').value || 1),
+      pack_unit: $('fPackUnit').value.trim() || 'Stück',
       location: $('fLoc').value.trim() || null,
       image_data: editingImageData[0],
       image_data_2: editingImageData[1],
@@ -2347,6 +2364,10 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
 
     if (data.quantity < 0 || data.min_quantity < 0 || data.target_quantity < 0) {
       $('formMsg').textContent = 'Bestände dürfen nicht negativ sein.';
+      return;
+    }
+    if (!(data.pack_size > 0) || !Number.isFinite(data.pack_size)) {
+      $('formMsg').textContent = 'Der Verpackungsinhalt muss größer als 0 sein.';
       return;
     }
     if (data.target_quantity < data.min_quantity) {
@@ -2608,9 +2629,9 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
 
   function exportCsv() {
     const rows = [
-      ['name', 'sku', 'barcode', 'quantity', 'unit', 'min_quantity', 'target_quantity', 'location'],
+      ['name', 'sku', 'barcode', 'quantity', 'unit', 'min_quantity', 'target_quantity', 'location', 'pack_size', 'pack_unit'],
       ...products.map(p => [
-        p.name, p.sku, p.barcode, p.quantity, p.unit, p.min_quantity, p.target_quantity ?? p.min_quantity, p.location
+        p.name, p.sku, p.barcode, p.quantity, p.unit, p.min_quantity, p.target_quantity ?? p.min_quantity, p.location, p.pack_size ?? 1, p.pack_unit || 'Stück'
       ])
     ];
 
@@ -2636,13 +2657,20 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       // Nur bei erreichtem Mindestbestand auslösen, dann exakt bis zum Zielbestand auffüllen.
       const toOrder = current <= minimum ? Math.max(0, target - current) : 0;
       if (!(toOrder > 0)) return;
+      const packSize = Number(product.pack_size ?? 1);
+      const packUnit = String(product.pack_unit || 'Karton');
+      if (!(packSize > 0) || !Number.isFinite(packSize)) return;
+      const packs = Math.ceil(toOrder / packSize);
       const manufacturer = manufacturerFromSku(product.sku);
       if (!groups.has(manufacturer)) groups.set(manufacturer, []);
       groups.get(manufacturer).push({
         sku: String(product.sku || 'Keine Artikelnummer'),
         name: String(product.name || 'Unbenannter Artikel'),
-        quantity: toOrder,
-        unit: String(product.unit || 'Stück')
+        quantity: packs,
+        unit: packUnit,
+        stockQuantity: packs * packSize,
+        stockUnit: String(product.unit || 'Stück'),
+        packSize
       });
     });
     return [...groups.entries()].sort((a, b) => {
@@ -2656,7 +2684,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   function orderTextForGroup(manufacturer, items) {
     // Bestelltext im gewünschten Briefformat mit einer Leerzeile zwischen den Artikeln.
     const articleLines = items.map(item =>
-      `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} | ${item.sku} | ${item.name}`
+      `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} (${Number(item.stockQuantity).toLocaleString('de-DE')} ${item.stockUnit}) | ${item.sku} | ${item.name}`
     );
     return [
       'Guten Tag,',
@@ -2682,11 +2710,11 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
         </div>
         <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
         <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th></tr></thead><tbody>
-          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(Number(item.quantity).toLocaleString('de-DE'))} ${escapeHtml(item.unit)}</td></tr>`).join('')}
+          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(Number(item.quantity).toLocaleString('de-DE'))} ${escapeHtml(item.unit)}</strong><div class="muted">${escapeHtml(Number(item.stockQuantity).toLocaleString('de-DE'))} ${escapeHtml(item.stockUnit)} (${escapeHtml(Number(item.packSize).toLocaleString('de-DE'))} je ${escapeHtml(item.unit)})</div></td></tr>`).join('')}
         </tbody></table></div>
       </section>`).join('');
     openModal('Bestellliste nach Hersteller', `
-      <p class="muted">Sobald der Bestand den Mindestbestand erreicht oder unterschreitet, wird exakt bis zum individuell festgelegten Zielbestand aufgefüllt. Jeder Hersteller erhält eine eigene Bestelltabelle.</p>
+      <p class="muted">Sobald der Bestand den Mindestbestand erreicht oder unterschreitet, wird bis zum Zielbestand aufgefüllt und auf volle Verpackungseinheiten aufgerundet. Die Stückzahl in Klammern zeigt die tatsächlich bestellte Lagermenge. Jeder Hersteller erhält eine eigene Bestelltabelle.</p>
       <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
       ${groupHtml}
     `);
@@ -2771,6 +2799,8 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     const mi = idx('min_quantity', 'mindestbestand', 'minbestand');
     const tqi = idx('target_quantity', 'zielbestand', 'sollbestand');
     const li = idx('location', 'lagerort');
+    const psi = idx('pack_size', 'verpackungsinhalt', 'inhalt_pro_verpackung');
+    const pui = idx('pack_unit', 'verpackungseinheit', 'verpackungsname');
 
     if (ni < 0) {
       notify('CSV benötigt eine Spalte name oder Artikelname.', true);
@@ -2785,7 +2815,9 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       unit: ui >= 0 ? (r[ui] || 'Stück').trim() : 'Stück',
       min_quantity: mi >= 0 ? Number(String(r[mi] || '0').replace(',', '.')) : 0,
       target_quantity: tqi >= 0 ? Number(String(r[tqi] || '0').replace(',', '.')) : (mi >= 0 ? Number(String(r[mi] || '0').replace(',', '.')) : 0),
-      location: li >= 0 ? (r[li] || '').trim() || null : null
+      location: li >= 0 ? (r[li] || '').trim() || null : null,
+      pack_size: psi >= 0 ? Number(String(r[psi] || '1').replace(',', '.')) : 1,
+      pack_unit: pui >= 0 ? (r[pui] || 'Stück').trim() : 'Stück'
     })).filter(x => x.name);
 
     if (products.length + data.length > 1000) {
