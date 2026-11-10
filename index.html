@@ -2443,11 +2443,14 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
           <option value="">Bitte auswählen…</option>
           ${products.map(x => `
             <option value="${x.id}" ${p?.id === x.id ? 'selected' : ''}>
-              ${escapeHtml(x.name)} – Bestand ${Number(x.quantity)} ${escapeHtml(x.unit || 'Stück')}
+              ${escapeHtml(x.name)}
             </option>
           `).join('')}
         </select>
-        <div id="bookingProductLocation" class="muted" style="margin-top:6px">${p ? `<strong>Lagerort:</strong> ${escapeHtml(p.location || 'Kein Lagerort hinterlegt')}` : 'Lagerort wird nach Auswahl oder Scan des Artikels angezeigt.'}</div>
+        <div id="bookingProductLocation" class="muted" style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <span><strong>Lagerort:</strong> ${escapeHtml(p ? (p.location || 'Kein Lagerort hinterlegt') : 'Wird nach Auswahl angezeigt')}</span>
+          <span><strong>Bestand:</strong> ${p ? `${Number(p.quantity)} ${escapeHtml(p.unit || 'Stück')}` : '–'}</span>
+        </div>
       </div>
       <div class="row">
         <div class="field" style="flex:1">
@@ -2473,8 +2476,8 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     const updateBookingProductLocation = () => {
       const selected = products.find(x => x.id === $('bProduct').value);
       $('bookingProductLocation').innerHTML = selected
-        ? `<strong>Lagerort:</strong> ${escapeHtml(selected.location || 'Kein Lagerort hinterlegt')}`
-        : 'Lagerort wird nach Auswahl oder Scan des Artikels angezeigt.';
+        ? `<span><strong>Lagerort:</strong> ${escapeHtml(selected.location || 'Kein Lagerort hinterlegt')}</span><span><strong>Bestand:</strong> ${Number(selected.quantity)} ${escapeHtml(selected.unit || 'Stück')}</span>`
+        : '<span><strong>Lagerort:</strong> Wird nach Auswahl angezeigt</span><span><strong>Bestand:</strong> –</span>';
       $('editBookingProductBtn').style.display = selected && currentRole === 'office' ? '' : 'none';
     };
 
