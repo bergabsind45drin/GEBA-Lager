@@ -84,6 +84,30 @@ h2{margin:0 0 12px;font-size:1.15rem}
 body.dark-mode .order-btn{background:#5b4a18!important;color:#fff0b3!important;border-color:#8b7228!important}
 .modal{position:fixed;inset:0;background:#10231dcc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
 .modal-card{background:white;border-radius:18px;padding:20px;width:min(500px,100%);max-height:90vh;overflow:auto}
+/* Bestellliste: breites, gut lesbares Modal mit vollständig sichtbaren Spalten */
+#modal .modal-card.order-list-modal{width:min(1320px,calc(100vw - 28px));max-width:none;max-height:94vh;padding:20px 22px;overflow-y:auto;overflow-x:hidden}
+#modal .order-list-modal #modalContent{width:100%;min-width:0}
+#modal .order-list-modal .order-list-group{width:100%;min-width:0;padding:14px;margin:12px 0}
+#modal .order-list-modal .order-list-group .table-wrap{width:100%;overflow:visible}
+#modal .order-list-modal .order-list-group table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse}
+#modal .order-list-modal .order-list-group th,#modal .order-list-modal .order-list-group td{padding:10px 9px;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}
+#modal .order-list-modal .order-list-group th:nth-child(1){width:21%}
+#modal .order-list-modal .order-list-group th:nth-child(2){width:37%}
+#modal .order-list-modal .order-list-group th:nth-child(3){width:19%}
+#modal .order-list-modal .order-list-group th:nth-child(4){width:23%}
+#modal .order-list-modal .order-list-group .field{width:100%;max-width:100%}
+#modal .order-list-modal .order-list-group .row{align-items:center}
+@media(max-width:700px){
+ #modal{padding:6px}
+ #modal .modal-card.order-list-modal{width:calc(100vw - 12px);max-height:96vh;padding:12px;border-radius:12px}
+ #modal .order-list-modal .order-list-group{padding:9px;margin:9px 0}
+ #modal .order-list-modal .order-list-group th,#modal .order-list-modal .order-list-group td{padding:7px 5px;font-size:12px}
+ #modal .order-list-modal .order-list-group th:nth-child(1){width:22%}
+ #modal .order-list-modal .order-list-group th:nth-child(2){width:32%}
+ #modal .order-list-modal .order-list-group th:nth-child(3){width:20%}
+ #modal .order-list-modal .order-list-group th:nth-child(4){width:26%}
+ #modal .order-list-modal .order-list-group .row button{flex:1 1 100%;white-space:normal}
+}
 footer{padding:10px 0 28px;color:#65736b;font-size:.82rem}
 @media print {
   @page { size: A4 portrait; margin: 14mm; }
@@ -2822,7 +2846,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       const hasReserved = items.some(item => item.status === 'in_bearbeitung');
       const hasOrdered = items.some(item => item.status === 'bestellt');
       return `
-      <section class="panel" style="margin:12px 0;padding:12px">
+      <section class="panel order-list-group" style="margin:12px 0;padding:12px">
         <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
           <strong>${escapeHtml(manufacturer)}</strong>
           <button type="button" class="secondary smallbtn" data-copy-order="${index}">Tabelle kopieren</button>
@@ -2845,6 +2869,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
       ${groupHtml}
     `);
+    document.querySelector('#modal .modal-card')?.classList.add('order-list-modal');
     $('copyAllOrdersBtn').onclick = () => copyOrderText(allText, 'Alle Bestelltexte');
     $('modalContent').querySelectorAll('[data-copy-order]').forEach(button => {
       button.onclick = () => { const index = Number(button.dataset.copyOrder); const [manufacturer, items] = groups[index]; copyOrderText(orderTextForGroup(manufacturer, items), manufacturer); };
