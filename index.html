@@ -53,7 +53,7 @@ th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 
 .module-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
 .module-tile{min-height:190px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;text-align:left;padding:22px;border-radius:18px;box-shadow:0 4px 14px #0078d41c;white-space:normal}
-.module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.module-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4;position:relative}.vehicle-alert-badge{position:absolute;top:12px;right:14px;min-width:30px;height:30px;padding:0 8px;border-radius:999px;background:#d71920;color:#fff;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px #0003}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
+.module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.module-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4;position:relative}.vehicle-alert-badge{position:absolute;top:12px;right:14px;min-width:30px;height:30px;padding:0 8px;border-radius:999px;background:#d71920;color:#fff;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px #0003}.inventory-reorder-badge{position:absolute;top:12px;right:14px;min-width:30px;height:30px;padding:0 8px;border-radius:999px;background:#facc15;color:#493600;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px #0003}.inventory-reorder-badge.hidden{display:none}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
 @media(max-width:600px){.module-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.module-tile{min-height:135px;padding:14px}.module-tile strong{font-size:1.05rem}.module-tile span:last-child{font-size:.82rem}.view-heading{margin:0 0 10px}}
 
 /* Fahrzeugverwaltung: Fahrzeugübersicht über die verfügbare Bildschirmbreite */
@@ -605,7 +605,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
         <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
-          <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
+          <span class="inventory-reorder-badge hidden" id="inventoryReorderBadge" aria-label="Artikel müssen nachbestellt werden">0</span><span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
         </button>
         <button id="openMaintenanceBtn" class="module-tile" type="button">
           <span class="maintenance-home-alerts" aria-live="polite"><span class="maintenance-alert-badge maintenance-alert-yellow hidden" id="maintenanceDueAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="maintenance-alert-badge maintenance-alert-red hidden" id="maintenanceOverdueAlertBadge" aria-label="Überfällige Wartungen">0</span></span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
@@ -1168,9 +1168,16 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       .reduce((n, p) => n + Number(p.quantity || 0), 0)
       .toLocaleString('de-DE');
 
-    $('lowCount').textContent = products.filter(
+    const reorderCount = products.filter(
       p => Number(p.quantity) <= Number(p.min_quantity || 0)
     ).length;
+    $('lowCount').textContent = reorderCount;
+    const reorderBadge = $('inventoryReorderBadge');
+    if (reorderBadge) {
+      reorderBadge.textContent = reorderCount;
+      reorderBadge.classList.toggle('hidden', reorderCount === 0);
+      reorderBadge.setAttribute('aria-label', `${reorderCount} Artikel müssen nachbestellt werden`);
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
