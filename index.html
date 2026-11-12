@@ -2193,14 +2193,15 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     $('modalTitle').textContent = title;
     $('modalContent').innerHTML = html;
     show('modal');
-    // Reset every relevant scroll container so the form opens at its first field.
+    // Modal beim Öffnen immer am Anfang anzeigen. Kein scrollIntoView auf
+    // das erste Bedienelement anwenden, da dieses in der Bestellliste erst
+    // innerhalb der Herstellergruppen liegt und sonst nach unten springt.
     requestAnimationFrame(() => {
       $('modalContent').scrollTop = 0;
       $('modal').scrollTop = 0;
       const card = document.querySelector('#modal .modal-card');
       if (card) card.scrollTop = 0;
-      const firstField = $('modalContent').querySelector('input, select, textarea, button');
-      if (firstField) firstField.scrollIntoView({ block: 'start', behavior: 'instant' });
+      window.scrollTo(0, 0);
     });
   }
 
