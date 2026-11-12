@@ -1380,7 +1380,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       const returned = Number(x.returned_quantity || 0);
       const outstanding = Math.max(0, issued - returned);
       const issuedDate = x.issued_at ? new Date(x.issued_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : '–';
-      const returnedDate = x.returned_at ? new Date(x.returned_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : 'Noch nicht angenommen';
+      const returnedDate = x.returned_at ? new Date(x.returned_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : (outstanding <= 0 ? 'Zeitpunkt nicht gespeichert' : 'Noch nicht angenommen');
       const status = outstanding <= 0
         ? '<span class="pill" style="background:#dcfce7;color:#166534">Vollständig zurück</span>'
         : `<span class="pill" style="background:#fee2e2;color:#991b1b">Ausgegeben: ${outstanding.toLocaleString('de-DE')} offen</span>`;
@@ -2121,7 +2121,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       }
       const {data,error}=await client.from('tool_issues').update({
         issued_at:new Date(date).toISOString(),employee_name:$('editIssueEmployee').value.trim(),
-        site_name:$('editIssueSite').value.trim(),quantity,returned_quantity:returned,notes:$('editIssueNotes').value.trim()||null
+        site_name:$('editIssueSite').value.trim(),quantity,returned_quantity:returned,returned_at:(returned >= quantity && quantity > 0) ? (x.returned_at || new Date().toISOString()) : null,notes:$('editIssueNotes').value.trim()||null
       }).eq('id',x.id).select('id');
       if(error){await refreshAll();notify('Ausgabe konnte nicht geändert werden: '+error.message,true);return;}
       if(!data || !data.length){notify('Keine Änderung gespeichert: Supabase erlaubt diesem Benutzer kein UPDATE auf tool_issues (RLS-Berechtigung prüfen).',true);return;}
