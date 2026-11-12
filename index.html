@@ -1116,7 +1116,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     // Bilder werden erst beim Öffnen eines einzelnen Artikels nachgeladen.
     const [p, m, ti, t] = await Promise.all([
       client.from('products')
-        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location,pack_size,pack_unit')
+        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location,pack_size,pack_unit,reorder_status,reorder_supplier,reorder_reserved_by,reorder_reserved_at,reorder_ordered_at,reorder_snoozed')
         .order('name').limit(1001),
       client.from('stock_movements')
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
@@ -1169,7 +1169,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       .toLocaleString('de-DE');
 
     const reorderCount = products.filter(
-      p => Number(p.quantity) <= Number(p.min_quantity || 0)
+      p => !p.reorder_snoozed && Number(p.quantity) <= Number(p.min_quantity || 0)
     ).length;
     $('lowCount').textContent = reorderCount;
     const reorderBadge = $('inventoryReorderBadge');
@@ -2082,6 +2082,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       if (nextQty < 0) { alert('Die Änderung würde einen negativen Lagerbestand erzeugen.'); return; }
       const { error: stockError } = await client.from('products').update({quantity:nextQty}).eq('id',product.id);
       if (stockError) { notify('Bestand konnte nicht angepasst werden: '+stockError.message,true); return; }
+      await updateReorderAfterStockChange(product.id, difference);
       const { data, error } = await client.from('stock_movements').update({delta,reason:$('editMoveReason').value.trim() || null,created_at:new Date(date).toISOString()}).eq('id',m.id).select('id');
       if (error) { await refreshAll(); notify('Buchung konnte nicht geändert werden: '+error.message,true); return; }
       if (!data || !data.length) { notify('Keine Änderung gespeichert: Supabase erlaubt diesem Benutzer kein UPDATE auf stock_movements (RLS-Berechtigung prüfen).', true); return; }
@@ -2097,6 +2098,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     if (nextQty < 0) { notify('Löschen würde einen negativen Bestand erzeugen.',true); return; }
     const {error: stockError} = await client.from('products').update({quantity:nextQty}).eq('id',product.id);
     if (stockError) { notify('Bestand konnte nicht angepasst werden: '+stockError.message,true); return; }
+    await updateReorderAfterStockChange(product.id, -Number(m.delta || 0));
     const {error} = await client.from('stock_movements').delete().eq('id',m.id);
     if (error) { await refreshAll(); notify('Buchung konnte nicht gelöscht werden: '+error.message,true); return; }
     await refreshAll(); notify('Lagerbuchung gelöscht und Bestand zurückgerechnet.');
@@ -2596,6 +2598,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         return;
       }
 
+      await updateReorderAfterStockChange(productId, action === 'in' ? qty : -qty);
       closeModal();
       await refreshAll();
       notify('Bestand aktualisiert.');
@@ -2702,10 +2705,13 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   function buildOrderGroups() {
     const groups = new Map();
     products.forEach(product => {
+      // Nach einem Wareneingang bleibt der Artikel aus der Bestellliste,
+      // auch wenn nur eine Teilmenge eingebucht wurde und der Mindestbestand
+      // noch nicht wieder erreicht ist.
+      if (product.reorder_snoozed) return;
       const current = Number(product.quantity || 0);
       const minimum = Number(product.min_quantity || 0);
       const target = Number(product.target_quantity ?? minimum);
-      // Nur bei erreichtem Mindestbestand auslösen, dann exakt bis zum Zielbestand auffüllen.
       const toOrder = current <= minimum ? Math.max(0, target - current) : 0;
       if (!(toOrder > 0)) return;
       const packSize = Number(product.pack_size ?? 1);
@@ -2715,17 +2721,22 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       const manufacturer = manufacturerFromSku(product.sku);
       if (!groups.has(manufacturer)) groups.set(manufacturer, []);
       groups.get(manufacturer).push({
+        id: product.id,
         sku: String(product.sku || 'Keine Artikelnummer'),
         name: String(product.name || 'Unbenannter Artikel'),
         quantity: packs,
         unit: packUnit,
         stockQuantity: packs * packSize,
         stockUnit: String(product.unit || 'Stück'),
-        packSize
+        packSize,
+        status: product.reorder_status || 'offen',
+        supplier: product.reorder_supplier || '',
+        reservedBy: product.reorder_reserved_by || '',
+        reservedAt: product.reorder_reserved_at || null,
+        orderedAt: product.reorder_ordered_at || null
       });
     });
     return [...groups.entries()].sort((a, b) => {
-      // Artikel ohne Herstellerkennung immer ganz ans Ende setzen.
       if (a[0] === 'Ohne Herstellerkennung') return 1;
       if (b[0] === 'Ohne Herstellerkennung') return -1;
       return a[0].localeCompare(b[0], 'de');
@@ -2733,50 +2744,123 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   }
 
   function orderTextForGroup(manufacturer, items) {
-    // Bestelltext im gewünschten Briefformat mit einer Leerzeile zwischen den Artikeln.
     const articleLines = items.map(item =>
       `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} | ${item.sku} | ${item.name}`
     );
-    return [
-      'Guten Tag,',
-      '',
-      'hiermit bestellen wir folgende Artikel bei Ihnen:',
-      '',
-      articleLines.join('\n\n')
-    ].join('\n');
+    return ['Guten Tag,', '', 'hiermit bestellen wir folgende Artikel bei Ihnen:', '', articleLines.join('\n\n')].join('\n');
+  }
+
+  function orderStatusLabel(status) {
+    if (status === 'in_bearbeitung') return '<span class="pill" style="background:#fff3cd;color:#805b00">In Bearbeitung</span>';
+    if (status === 'bestellt') return '<span class="pill" style="background:#dbeafe;color:#1d4ed8">Bestellt</span>';
+    return '<span class="pill" style="background:#fee2e2;color:#b91c1c">Offen</span>';
+  }
+
+  async function claimOrderGroup(index) {
+    const groups = buildOrderGroups();
+    const group = groups[index];
+    if (!group) return;
+    const [manufacturer, items] = group;
+    const supplier = $('orderSupplier_' + index)?.value.trim();
+    if (!supplier) { notify('Bitte zuerst den Lieferanten eintragen.', true); return; }
+    const ids = items.filter(item => item.status === 'offen').map(item => item.id);
+    if (!ids.length) { notify('Für diesen Hersteller sind keine offenen Artikel mehr vorhanden.', true); await refreshAll(); openOrderList(); return; }
+    const { data, error } = await client.from('products').update({
+      reorder_status: 'in_bearbeitung', reorder_supplier: supplier,
+      reorder_reserved_by: currentUser?.email || currentUser?.id || 'Nutzer',
+      reorder_reserved_at: new Date().toISOString()
+    }).in('id', ids).eq('reorder_status', 'offen').select('id');
+    if (error) { notify('Bestellung konnte nicht übernommen werden: ' + error.message, true); return; }
+    if (!data?.length) { notify('Ein anderer Mitarbeiter hat diese Bestellung bereits übernommen. Bitte aktualisieren.', true); await refreshAll(); openOrderList(); return; }
+    await refreshAll(); openOrderList();
+    notify(`${data.length} Artikel bei ${manufacturer} wurden für ${supplier} reserviert.`);
+  }
+
+  async function markOrderGroupOrdered(index) {
+    const groups = buildOrderGroups();
+    const group = groups[index];
+    if (!group) return;
+    const [manufacturer, items] = group;
+    const supplier = $('orderSupplier_' + index)?.value.trim() || items.find(item => item.supplier)?.supplier || '';
+    if (!supplier) { notify('Bitte den Lieferanten eintragen.', true); return; }
+    const ids = items.filter(item => item.status === 'in_bearbeitung').map(item => item.id);
+    if (!ids.length) { notify('Bitte die Bestellung zuerst übernehmen.', true); return; }
+    const { data, error } = await client.from('products').update({
+      reorder_status: 'bestellt', reorder_supplier: supplier,
+      reorder_reserved_by: currentUser?.email || currentUser?.id || 'Nutzer',
+      reorder_ordered_at: new Date().toISOString()
+    }).in('id', ids).eq('reorder_status', 'in_bearbeitung').select('id');
+    if (error) { notify('Status konnte nicht auf „Bestellt“ gesetzt werden: ' + error.message, true); return; }
+    await refreshAll(); openOrderList();
+    notify(`${data?.length || 0} Artikel bei ${supplier} als bestellt markiert.`);
+  }
+
+  async function reopenOrderGroup(index) {
+    const groups = buildOrderGroups();
+    const group = groups[index];
+    if (!group) return;
+    const ids = group[1].filter(item => item.status !== 'offen').map(item => item.id);
+    if (!ids.length) return;
+    const { error } = await client.from('products').update({
+      reorder_status: 'offen', reorder_supplier: null, reorder_reserved_by: null,
+      reorder_reserved_at: null, reorder_ordered_at: null
+    }).in('id', ids);
+    if (error) { notify('Bestellung konnte nicht freigegeben werden: ' + error.message, true); return; }
+    await refreshAll(); openOrderList(); notify('Bestellung wurde wieder freigegeben.');
   }
 
   function openOrderList() {
     const groups = buildOrderGroups();
     if (!groups.length) {
-      openModal('Bestellliste nach Hersteller', '<p>Aktuell müssen keine Artikel nachbestellt werden. Alle Bestände liegen auf oder über dem hinterlegten Mindestbestand.</p>');
+      openModal('Bestellliste', '<p>Aktuell müssen keine Artikel nachbestellt werden. Alle Bestände liegen auf oder über dem hinterlegten Mindestbestand.</p>');
       return;
     }
     const allText = groups.map(([manufacturer, items]) => orderTextForGroup(manufacturer, items)).join('\n\n' + '='.repeat(42) + '\n\n');
-    const groupHtml = groups.map(([manufacturer, items], index) => `
+    const groupHtml = groups.map(([manufacturer, items], index) => {
+      const supplierValue = items.find(item => item.supplier)?.supplier || '';
+      const hasOpen = items.some(item => item.status === 'offen');
+      const hasReserved = items.some(item => item.status === 'in_bearbeitung');
+      const hasOrdered = items.some(item => item.status === 'bestellt');
+      return `
       <section class="panel" style="margin:12px 0;padding:12px">
-        <div class="row" style="justify-content:space-between;align-items:center">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
           <strong>${escapeHtml(manufacturer)}</strong>
           <button type="button" class="secondary smallbtn" data-copy-order="${index}">Tabelle kopieren</button>
         </div>
         <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
-        <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th></tr></thead><tbody>
-          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td></tr>`).join('')}
+        <div class="field"><label for="orderSupplier_${index}">Lieferant reservieren / zuordnen</label><input id="orderSupplier_${index}" value="${escapeHtml(supplierValue)}" placeholder="Name des Lieferanten"></div>
+        <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th><th>Status</th></tr></thead><tbody>
+          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td><td>${orderStatusLabel(item.status)}${item.status !== 'offen' ? `<div class="muted" style="font-size:12px;margin-top:4px">${escapeHtml(item.supplier || '')}${item.reservedBy ? ' · ' + escapeHtml(item.reservedBy) : ''}</div>` : ''}</td></tr>`).join('')}
         </tbody></table></div>
-      </section>`).join('');
+        <div class="row" style="flex-wrap:wrap;margin-top:10px;gap:8px">
+          ${hasOpen ? `<button type="button" class="secondary" data-claim-order="${index}">Lieferant übernehmen</button>` : ''}
+          ${hasReserved ? `<button type="button" data-mark-ordered="${index}">Als bestellt markieren</button>` : ''}
+          ${hasOrdered || hasReserved ? `<button type="button" class="secondary smallbtn" data-reopen-order="${index}">Wieder freigeben</button>` : ''}
+        </div>
+        ${hasOrdered ? '<p class="muted" style="margin:8px 0 0">Bestellte Artikel bleiben sichtbar, bis ein Wareneingang für den jeweiligen Artikel gebucht wird.</p>' : ''}
+      </section>`;
+    }).join('');
     openModal('Bestellliste nach Hersteller', `
-      <p class="muted">Sobald der Bestand den Mindestbestand erreicht oder unterschreitet, wird bis zum Zielbestand aufgefüllt und auf volle Verpackungseinheiten aufgerundet. Jeder Hersteller erhält eine eigene Bestelltabelle.</p>
+      <p class="muted">Offen = muss bestellt werden. In Bearbeitung = Lieferant ist reserviert. Bestellt = Bestellung wurde abgeschickt. Sobald du einen Wareneingang für einen Artikel buchst, verschwindet dieser aus der Bestellliste.</p>
       <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
       ${groupHtml}
     `);
     $('copyAllOrdersBtn').onclick = () => copyOrderText(allText, 'Alle Bestelltexte');
     $('modalContent').querySelectorAll('[data-copy-order]').forEach(button => {
-      button.onclick = () => {
-        const index = Number(button.dataset.copyOrder);
-        const [manufacturer, items] = groups[index];
-        copyOrderText(orderTextForGroup(manufacturer, items), manufacturer);
-      };
+      button.onclick = () => { const index = Number(button.dataset.copyOrder); const [manufacturer, items] = groups[index]; copyOrderText(orderTextForGroup(manufacturer, items), manufacturer); };
     });
+    $('modalContent').querySelectorAll('[data-claim-order]').forEach(button => button.onclick = () => claimOrderGroup(Number(button.dataset.claimOrder)));
+    $('modalContent').querySelectorAll('[data-mark-ordered]').forEach(button => button.onclick = () => markOrderGroupOrdered(Number(button.dataset.markOrdered)));
+    $('modalContent').querySelectorAll('[data-reopen-order]').forEach(button => button.onclick = () => reopenOrderGroup(Number(button.dataset.reopenOrder)));
+  }
+
+  async function updateReorderAfterStockChange(productId, delta) {
+    if (!productId || !Number.isFinite(Number(delta)) || Number(delta) === 0) return;
+    const payload = Number(delta) > 0
+      ? {reorder_snoozed:true, reorder_status:'offen', reorder_supplier:null, reorder_reserved_by:null, reorder_reserved_at:null, reorder_ordered_at:null}
+      : {reorder_snoozed:false};
+    const {error} = await client.from('products').update(payload).eq('id', productId);
+    if (error) console.warn('Bestellstatus konnte nach Lagerbuchung nicht aktualisiert werden:', error.message);
   }
 
   async function copyOrderText(text, label) {
