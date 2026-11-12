@@ -899,7 +899,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       <div id="toolBookingsPanel" class="hidden">
         <h3>Letzte Werkzeugbuchungen</h3>
         <p class="muted">Hier siehst du die zuletzt erfassten Werkzeugausgaben mit Mitarbeiter, Baustelle und aktuellem Rückgabestatus.</p>
-        <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status</th></tr></thead><tbody id="toolBookingsBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Ausgegeben am</th><th>Angenommen am</th><th>Mitarbeiter</th><th>Baustelle</th><th>Werkzeug</th><th>Menge</th><th>Status</th></tr></thead><tbody id="toolBookingsBody"></tbody></table></div>
       </div>
       </section>
     </section>
@@ -1122,7 +1122,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
         .order('created_at', { ascending: false }).limit(30),
       client.from('tool_issues')
-        .select('id,tool_id,employee_name,site_name,quantity,returned_quantity,notes,issued_at,tool_name_snapshot,tool_unit_snapshot,issue_photo_path,return_photo_path,tools!tool_issues_tool_id_fkey(name,unit)')
+        .select('id,tool_id,employee_name,site_name,quantity,returned_quantity,notes,issued_at,returned_at,tool_name_snapshot,tool_unit_snapshot,issue_photo_path,return_photo_path,tools!tool_issues_tool_id_fkey(name,unit)')
         .order('issued_at', { ascending: false }).limit(150),
       client.from('tools')
         .select('id,name,unit,quantity,code,active')
@@ -1379,12 +1379,14 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       const issued = Number(x.quantity || 0);
       const returned = Number(x.returned_quantity || 0);
       const outstanding = Math.max(0, issued - returned);
-      const date = x.issued_at ? new Date(x.issued_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : '–';
+      const issuedDate = x.issued_at ? new Date(x.issued_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : '–';
+      const returnedDate = x.returned_at ? new Date(x.returned_at).toLocaleString('de-DE', {dateStyle:'short',timeStyle:'short'}) : 'Noch nicht angenommen';
       const status = outstanding <= 0
         ? '<span class="pill" style="background:#dcfce7;color:#166534">Vollständig zurück</span>'
         : `<span class="pill" style="background:#fee2e2;color:#991b1b">Ausgegeben: ${outstanding.toLocaleString('de-DE')} offen</span>`;
       return `<tr>
-        <td data-label="Datum">${date}</td>
+        <td data-label="Ausgegeben am">${issuedDate}</td>
+        <td data-label="Angenommen am">${returnedDate}</td>
         <td data-label="Mitarbeiter">${escapeHtml(x.employee_name)}</td>
         <td data-label="Baustelle">${escapeHtml(x.site_name)}</td>
         <td data-label="Werkzeug">${escapeHtml(x.tools?.name || x.tool_name_snapshot || 'Werkzeug')}</td>
@@ -1395,7 +1397,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
           ${editorMode ? `<div class="row" style="margin-top:6px"><button type="button" class="danger smallbtn" data-delete-issue="${x.id}">Löschen</button></div>` : ''}
         </td>
       </tr>`;
-    }).join('') || '<tr><td colspan="6" class="muted">Noch keine Werkzeugbuchungen vorhanden.</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="muted">Noch keine Werkzeugbuchungen vorhanden.</td></tr>';
   }
 
   function showToolMessage(message, error = false) {
@@ -1609,7 +1611,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
     const { data: issue, error: issueLoadError } = await client
       .from('tool_issues')
-      .select('id, tool_id, quantity, returned_quantity')
+      .select('id, tool_id, quantity, returned_quantity, returned_at')
       .eq('id', issueId)
       .maybeSingle();
 
@@ -1638,11 +1640,12 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     const oldStock = Number(tool.quantity || 0);
     const newReturned = returnedBefore + amount;
     const newStock = oldStock + amount;
+    const returnedAt = new Date().toISOString();
 
     // Compare-and-set verhindert, dass dieselbe Ausgabe parallel doppelt zurückgenommen wird.
     let issueUpdate = client
       .from('tool_issues')
-      .update({ returned_quantity: newReturned })
+      .update({ returned_quantity: newReturned, returned_at: returnedAt })
       .eq('id', issueId);
     issueUpdate = issue.returned_quantity == null
       ? issueUpdate.is('returned_quantity', null)
@@ -1667,7 +1670,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       // Rückgabezähler zurücksetzen, falls der Lagerbestand nicht geändert werden konnte.
       const { error: rollbackError } = await client
         .from('tool_issues')
-        .update({ returned_quantity: issue.returned_quantity == null ? null : returnedBefore })
+        .update({ returned_quantity: issue.returned_quantity == null ? null : returnedBefore, returned_at: issue.returned_at || null })
         .eq('id', issueId)
         .eq('returned_quantity', newReturned);
 
