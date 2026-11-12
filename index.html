@@ -2719,7 +2719,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   function orderTextForGroup(manufacturer, items) {
     // Bestelltext im gewünschten Briefformat mit einer Leerzeile zwischen den Artikeln.
     const articleLines = items.map(item =>
-      `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} (${Number(item.stockQuantity).toLocaleString('de-DE')} ${item.stockUnit}) | ${item.sku} | ${item.name}`
+      `${String(Number(item.quantity)).padStart(2, '0')} ${item.unit} | ${item.sku} | ${item.name}`
     );
     return [
       'Guten Tag,',
@@ -2745,11 +2745,11 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         </div>
         <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
         <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th></tr></thead><tbody>
-          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(Number(item.quantity).toLocaleString('de-DE'))} ${escapeHtml(item.unit)}</strong><div class="muted">${escapeHtml(Number(item.stockQuantity).toLocaleString('de-DE'))} ${escapeHtml(item.stockUnit)} (${escapeHtml(Number(item.packSize).toLocaleString('de-DE'))} je ${escapeHtml(item.unit)})</div></td></tr>`).join('')}
+          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td></tr>`).join('')}
         </tbody></table></div>
       </section>`).join('');
     openModal('Bestellliste nach Hersteller', `
-      <p class="muted">Sobald der Bestand den Mindestbestand erreicht oder unterschreitet, wird bis zum Zielbestand aufgefüllt und auf volle Verpackungseinheiten aufgerundet. Die Stückzahl in Klammern zeigt die tatsächlich bestellte Lagermenge. Jeder Hersteller erhält eine eigene Bestelltabelle.</p>
+      <p class="muted">Sobald der Bestand den Mindestbestand erreicht oder unterschreitet, wird bis zum Zielbestand aufgefüllt und auf volle Verpackungseinheiten aufgerundet. Jeder Hersteller erhält eine eigene Bestelltabelle.</p>
       <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
       ${groupHtml}
     `);
