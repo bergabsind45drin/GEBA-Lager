@@ -2781,7 +2781,16 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     return '<span class="pill" style="background:#fee2e2;color:#b91c1c">Offen</span>';
   }
 
+  function getOrderListScrollPosition() {
+    const card = document.querySelector('#modal .modal-card');
+    return {
+      card: card?.scrollTop || 0,
+      content: $('modalContent')?.scrollTop || 0
+    };
+  }
+
   async function claimOrderGroup(index) {
+    const scrollPosition = getOrderListScrollPosition();
     const groups = buildOrderGroups();
     const group = groups[index];
     if (!group) return;
@@ -2789,19 +2798,20 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     const supplier = $('orderSupplier_' + index)?.value.trim();
     if (!supplier) { notify('Bitte zuerst den Lieferanten eintragen.', true); return; }
     const ids = items.filter(item => item.status === 'offen').map(item => item.id);
-    if (!ids.length) { notify('Für diesen Hersteller sind keine offenen Artikel mehr vorhanden.', true); await refreshAll(); openOrderList(); return; }
+    if (!ids.length) { notify('Für diesen Hersteller sind keine offenen Artikel mehr vorhanden.', true); await refreshAll(); openOrderList(scrollPosition); return; }
     const { data, error } = await client.from('products').update({
       reorder_status: 'in_bearbeitung', reorder_supplier: supplier,
       reorder_reserved_by: currentUser?.email || currentUser?.id || 'Nutzer',
       reorder_reserved_at: new Date().toISOString()
     }).in('id', ids).eq('reorder_status', 'offen').select('id');
     if (error) { notify('Bestellung konnte nicht übernommen werden: ' + error.message, true); return; }
-    if (!data?.length) { notify('Ein anderer Mitarbeiter hat diese Bestellung bereits übernommen. Bitte aktualisieren.', true); await refreshAll(); openOrderList(); return; }
-    await refreshAll(); openOrderList();
+    if (!data?.length) { notify('Ein anderer Mitarbeiter hat diese Bestellung bereits übernommen. Bitte aktualisieren.', true); await refreshAll(); openOrderList(scrollPosition); return; }
+    await refreshAll(); openOrderList(scrollPosition);
     notify(`${data.length} Artikel bei ${manufacturer} wurden für ${supplier} reserviert.`);
   }
 
   async function markOrderGroupOrdered(index) {
+    const scrollPosition = getOrderListScrollPosition();
     const groups = buildOrderGroups();
     const group = groups[index];
     if (!group) return;
@@ -2816,11 +2826,12 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       reorder_ordered_at: new Date().toISOString()
     }).in('id', ids).eq('reorder_status', 'in_bearbeitung').select('id');
     if (error) { notify('Status konnte nicht auf „Bestellt“ gesetzt werden: ' + error.message, true); return; }
-    await refreshAll(); openOrderList();
+    await refreshAll(); openOrderList(scrollPosition);
     notify(`${data?.length || 0} Artikel bei ${supplier} als bestellt markiert.`);
   }
 
   async function reopenOrderGroup(index) {
+    const scrollPosition = getOrderListScrollPosition();
     const groups = buildOrderGroups();
     const group = groups[index];
     if (!group) return;
@@ -2831,10 +2842,10 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       reorder_reserved_at: null, reorder_ordered_at: null
     }).in('id', ids);
     if (error) { notify('Bestellung konnte nicht freigegeben werden: ' + error.message, true); return; }
-    await refreshAll(); openOrderList(); notify('Bestellung wurde wieder freigegeben.');
+    await refreshAll(); openOrderList(scrollPosition); notify('Bestellung wurde wieder freigegeben.');
   }
 
-  function openOrderList() {
+  function openOrderList(restoreScrollPosition = null) {
     const groups = buildOrderGroups();
     if (!groups.length) {
       openModal('Bestellliste', '<p>Aktuell müssen keine Artikel nachbestellt werden. Alle Bestände liegen auf oder über dem hinterlegten Mindestbestand.</p>');
@@ -2895,6 +2906,13 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     $('modalContent').querySelectorAll('[data-claim-order]').forEach(button => button.onclick = () => claimOrderGroup(Number(button.dataset.claimOrder)));
     $('modalContent').querySelectorAll('[data-mark-ordered]').forEach(button => button.onclick = () => markOrderGroupOrdered(Number(button.dataset.markOrdered)));
     $('modalContent').querySelectorAll('[data-reopen-order]').forEach(button => button.onclick = () => reopenOrderGroup(Number(button.dataset.reopenOrder)));
+    if (restoreScrollPosition) {
+      requestAnimationFrame(() => {
+        const card = document.querySelector('#modal .modal-card');
+        if (card) card.scrollTop = restoreScrollPosition.card || 0;
+        $('modalContent').scrollTop = restoreScrollPosition.content || 0;
+      });
+    }
   }
 
   async function updateReorderAfterStockChange(productId, delta) {
