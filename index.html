@@ -595,6 +595,9 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     <section id="homeView" class="panel">
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
+        <button id="openWarehouseInventoryBtn" class="module-tile" type="button">
+          <span class="module-icon">📦</span><strong>Inventur Lager</strong><span>Lagerbestand zählen, erfassen und exportieren</span>
+        </button>
         <button id="openMaintenanceBtn" class="module-tile" type="button">
           <span class="maintenance-home-alerts" aria-live="polite"><span class="maintenance-alert-badge maintenance-alert-yellow hidden" id="maintenanceDueAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="maintenance-alert-badge maintenance-alert-red hidden" id="maintenanceOverdueAlertBadge" aria-label="Überfällige Wartungen">0</span></span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
         </button>
@@ -608,7 +611,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
           <span class="vehicle-alert-badge hidden" id="vehicleAlertBadge" aria-label="Dringende Fahrzeugmeldungen">0</span><span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
         </button>
         <button id="openFleetInventoryBtn" class="module-tile" type="button">
-          <span class="module-icon">📋</span><strong>Inventur</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
+          <span class="module-icon">📋</span><strong>Inventur Bus</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
         </button>
       </div>
     </section>
@@ -686,8 +689,23 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       </section>
     </section>
 
+    <section id="warehouseInventoryView" class="hidden">
+      <div class="row view-heading"><button id="warehouseInventoryHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>📦 Inventur Lager</h2></div>
+      <section class="panel" style="margin-top:16px">
+        <div class="row" style="gap:8px;margin-bottom:14px">
+          <input id="warehouseInventorySearch" class="search" placeholder="Artikel, Artikelnummer oder Barcode suchen …">
+          <button type="button" id="warehouseInventoryRefreshBtn" class="secondary">↻ Aktualisieren</button>
+          <button type="button" id="warehouseInventoryExportBtn" class="secondary">⇩ Inventur Export</button>
+          <button type="button" id="warehouseInventoryResetBtn" class="danger hidden">↻ Zurücksetzen</button>
+        </div>
+        <p class="muted">Erfasse hier den tatsächlich gezählten Bestand der Lagerartikel. Der normale Lagerbestand wird dabei nicht verändert.</p>
+        <div id="warehouseInventoryMsg" class="msg hidden"></div>
+        <div id="warehouseInventoryList" class="muted">Lagerinventur wird geladen …</div>
+      </section>
+    </section>
+
     <section id="fleetInventoryView" class="hidden">
-      <div class="row view-heading"><button id="fleetHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>📋 Inventur</h2></div>
+      <div class="row view-heading"><button id="fleetHomeBtn" class="secondary smallbtn">← Übersicht</button><h2>📋 Inventur Bus</h2></div>
       <section class="panel" id="fleetInventoryPanel" style="margin-top:16px">
           <div class="row" style="gap:8px;margin-bottom:14px">
             <button type="button" id="fleetCreateTab">Fahrzeuge anlegen</button>
@@ -908,6 +926,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   let stockCart = [];
   let fleetVehicles = [];
   let fleetAssignments = [];
+  let warehouseInventoryRows = [];
   let showOnlyActiveTools = true;
   let editorMode = false;
   const EDITOR_PASSWORD = "654321";
@@ -999,10 +1018,11 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     const isMonteur = currentRole === 'monteur';
     $('userEmail').textContent = isMonteur ? (currentUser.user_metadata?.name || 'Monteur') : (currentUser.email || '');
     ['qrToolsBtn','editorModeBtn'].forEach(id => $(id).classList.toggle('hidden', isMonteur));
-    $('openMaintenanceBtn').classList.toggle('hidden', false);
+    $('openMaintenanceBtn').classList.toggle('hidden', isMonteur);
     $('openInventoryBtn').classList.toggle('hidden', isMonteur);
     $('openToolsBtn').classList.toggle('hidden', isMonteur);
     $('openFleetInventoryBtn').classList.toggle('hidden', false);
+    $('openWarehouseInventoryBtn').classList.toggle('hidden', isMonteur);
     $('fleetHomeBtn').classList.toggle('hidden', isMonteur);
     $('fleetCreateTab').classList.toggle('hidden', isMonteur);
     $('fleetExportBtn').classList.toggle('hidden', isMonteur);
@@ -1963,6 +1983,7 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   function setEditorMode(enabled) {
     editorMode = enabled;
     if (typeof renderFleetVehicles === 'function' && $('fleetVehiclesList')) renderFleetVehicles();
+    if (typeof renderWarehouseInventory === 'function' && $('warehouseInventoryList')) renderWarehouseInventory();
     $('editorModeBtn').textContent = enabled ? '🔒 Editor beenden' : '✎ Editor-Modus';
     $('editorModeBtn').classList.toggle('danger', enabled);
     renderMovements();
@@ -2904,6 +2925,76 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     }
   }
 
+
+  async function loadWarehouseInventory() {
+    if (!client || !currentUser || currentRole !== 'office') return;
+    const [p,c] = await Promise.all([
+      client.from('products').select('id,name,sku,barcode,quantity,unit,location').order('name').limit(1001),
+      client.from('warehouse_inventory').select('id,product_id,quantity,notes,counted_by,updated_at').order('updated_at',{ascending:false})
+    ]);
+    if (p.error || c.error) {
+      const err=p.error||c.error;
+      $('warehouseInventoryMsg').textContent='Lagerinventur konnte nicht geladen werden: '+err.message+' – bitte das SQL für warehouse_inventory einmalig im Supabase-Editor ausführen.';
+      show('warehouseInventoryMsg'); $('warehouseInventoryList').innerHTML=''; return;
+    }
+    products=p.data||products; warehouseInventoryRows=c.data||[];
+    hide('warehouseInventoryMsg'); renderWarehouseInventory();
+  }
+  function renderWarehouseInventory() {
+    const target=$('warehouseInventoryList'); if(!target)return;
+    const q=String($('warehouseInventorySearch')?.value||'').trim().toLowerCase();
+    const rows=products.filter(p=>[p.name,p.sku,p.barcode,p.location].some(v=>String(v||'').toLowerCase().includes(q)));
+    const counted=new Map(warehouseInventoryRows.map(r=>[r.product_id,r]));
+    target.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Artikelnummer</th><th>Lagerort</th><th>Bestand laut System</th><th>Gezählt</th><th>Notiz</th><th>Aktion</th></tr></thead><tbody>`+
+      rows.map(p=>{const e=counted.get(p.id);return `<tr>
+        <td data-label="Artikel"><strong>${escapeHtml(p.name)}</strong></td>
+        <td data-label="Artikelnummer">${escapeHtml(p.sku||p.barcode||'–')}</td>
+        <td data-label="Lagerort">${escapeHtml(p.location||'–')}</td>
+        <td data-label="Bestand laut System">${Number(p.quantity||0).toLocaleString('de-DE')} ${escapeHtml(p.unit||'Stück')}</td>
+        <td data-label="Gezählt"><input id="warehouseQty_${p.id}" type="number" min="0" step="0.01" value="${e?Number(e.quantity):''}" placeholder="Menge" style="width:100%;min-width:85px;padding:9px;border:1px solid #c8dced;border-radius:9px"></td>
+        <td data-label="Notiz"><input id="warehouseNote_${p.id}" value="${escapeHtml(e?.notes||'')}" placeholder="Optional" style="width:100%;min-width:100px;padding:9px;border:1px solid #c8dced;border-radius:9px"></td>
+        <td data-label="Aktion"><div class="row"><button type="button" class="smallbtn" data-save-warehouse-count="${p.id}">Speichern</button>${editorMode&&e?`<button type="button" class="danger smallbtn" data-delete-warehouse-count="${e.id}">Löschen</button>`:''}</div>${e?`<small class="muted">Erfasst von: ${escapeHtml(e.counted_by||'–')}</small>`:''}</td>
+      </tr>`}).join('')+'</tbody></table></div>':'<p class="muted">Keine passenden Lagerartikel gefunden.</p>';
+    $('warehouseInventoryResetBtn').classList.toggle('hidden',!editorMode);
+  }
+  async function saveWarehouseCount(productId) {
+    if(currentRole!=='office')return notify('Keine Berechtigung.',true);
+    const input=$('warehouseQty_'+productId), qty=Number(input?.value);
+    if(!input||input.value.trim()===''||!Number.isFinite(qty)||qty<0)return notify('Bitte eine gültige gezählte Menge eingeben.',true);
+    const payload={product_id:productId,quantity:qty,notes:$('warehouseNote_'+productId)?.value.trim()||null,counted_by:getInventoryRecorderName(),updated_by:currentUser.id};
+    const {error}=await client.from('warehouse_inventory').upsert(payload,{onConflict:'product_id'});
+    if(error)return notify('Gezählter Lagerbestand konnte nicht gespeichert werden: '+error.message,true);
+    await loadWarehouseInventory(); notify('Gezählter Lagerbestand wurde gespeichert.');
+  }
+  async function deleteWarehouseCount(id) {
+    if(currentRole!=='office'||!editorMode)return notify('Löschen ist nur im Editor-Modus möglich.',true);
+    if(!confirm('Diesen gezählten Lagerbestand wirklich löschen?'))return;
+    const {error}=await client.from('warehouse_inventory').delete().eq('id',id);
+    if(error)return notify('Eintrag konnte nicht gelöscht werden: '+error.message,true);
+    await loadWarehouseInventory(); notify('Inventur-Eintrag gelöscht.');
+  }
+  async function resetWarehouseInventory() {
+    if(currentRole!=='office'||!editorMode)return notify('Zurücksetzen ist nur im Editor-Modus möglich.',true);
+    const password=prompt('Zum Zurücksetzen bitte das Editor-Passwort eingeben:');
+    if(password===null)return;
+    if(password!==EDITOR_PASSWORD)return alert('Falsches Passwort. Die Lagerinventur wurde nicht zurückgesetzt.');
+    if(!confirm('Wirklich alle erfassten Lager-Inventurwerte löschen? Die Lagerartikel und deren Systembestände bleiben unverändert.'))return;
+    const {error}=await client.from('warehouse_inventory').delete().not('id','is',null);
+    if(error)return notify('Lagerinventur konnte nicht zurückgesetzt werden: '+error.message,true);
+    await loadWarehouseInventory(); notify('Alle erfassten Lager-Inventurwerte wurden zurückgesetzt.');
+  }
+  function exportWarehouseInventory() {
+    const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const counted=new Map(warehouseInventoryRows.map(r=>[r.product_id,r]));
+    const rows=[['Artikel','Artikelnummer','Barcode','Lagerort','Bestand laut System','Gezählte Menge','Differenz','Einheit','Notiz','Erfasst von']];
+    [...products].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'de')).forEach(p=>{
+      const e=counted.get(p.id), actual=e?Number(e.quantity):'';
+      rows.push([p.name,p.sku||'',p.barcode||'',p.location||'',Number(p.quantity||0).toLocaleString('de-DE'),actual===''?'':actual.toLocaleString('de-DE'),actual===''?'':(actual-Number(p.quantity||0)).toLocaleString('de-DE'),p.unit||'Stück',e?.notes||'',e?.counted_by||'']);
+    });
+    const blob=new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GEBA-Inventur-Lager.csv';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+
   async function loadFleetInventory() {
     if (!client || !currentUser) return;
     const [v, a] = await Promise.all([
@@ -3613,9 +3704,10 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   }
 
   function showMainView(view) {
-    if (currentRole === 'monteur' && view !== 'fleet' && view !== 'maintenance') view = 'fleet';
-    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('maintenanceView');
-    if (view === 'maintenance') show('maintenanceView');
+    if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
+    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('warehouseInventoryView'); hide('maintenanceView');
+    if (view === 'warehouseInventory') show('warehouseInventoryView');
+    else if (view === 'maintenance') show('maintenanceView');
     else if (view === 'inventory') show('inventoryView');
     else if (view === 'tools') show('toolView');
     else if (view === 'vehicles') show('vehiclesView');
@@ -3662,6 +3754,17 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     const del = event.target.closest('[data-delete-vehicle-record]');
     if (edit) editVehicleRecord(edit.dataset.editVehicleRecord);
     if (del) deleteVehicleRecord(del.dataset.deleteVehicleRecord);
+  });
+  $('openWarehouseInventoryBtn').onclick = async () => { showMainView('warehouseInventory'); await loadWarehouseInventory(); };
+  $('warehouseInventoryHomeBtn').onclick = () => showMainView('home');
+  $('warehouseInventoryRefreshBtn').onclick = loadWarehouseInventory;
+  $('warehouseInventoryExportBtn').onclick = exportWarehouseInventory;
+  $('warehouseInventoryResetBtn').onclick = resetWarehouseInventory;
+  $('warehouseInventorySearch').addEventListener('input',renderWarehouseInventory);
+  $('warehouseInventoryList').addEventListener('click',e=>{
+    const save=e.target.closest('[data-save-warehouse-count]'),del=e.target.closest('[data-delete-warehouse-count]');
+    if(save)saveWarehouseCount(save.dataset.saveWarehouseCount);
+    if(del)deleteWarehouseCount(del.dataset.deleteWarehouseCount);
   });
   $('openFleetInventoryBtn').onclick = async () => { showMainView('fleet'); await loadFleetInventory(); };
   $('fleetHomeBtn').onclick = () => showMainView('home');
