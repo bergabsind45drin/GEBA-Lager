@@ -54,7 +54,7 @@ th{color:#526b80;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 .module-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
 .module-tile{min-height:190px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;text-align:left;padding:22px;border-radius:18px;box-shadow:0 4px 14px #0078d41c;white-space:normal}
 .module-tile strong{font-size:1.35rem}.module-tile span:last-child{font-weight:500;line-height:1.4;opacity:.9}.module-icon{font-size:2.2rem}.module-tile{background:#e5f2ff;color:#005a9e;border:2px solid #9acdf4;position:relative}.vehicle-alert-badge{position:absolute;top:12px;right:14px;min-width:30px;height:30px;padding:0 8px;border-radius:999px;background:#d71920;color:#fff;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px #0003}.view-heading{margin:0 0 12px}.view-heading h2{margin:0;font-size:1.25rem}
-@media(max-width:600px){.module-tiles{grid-template-columns:1fr;gap:10px}.module-tile{min-height:135px;padding:18px}.view-heading{margin:0 0 10px}}
+@media(max-width:600px){.module-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.module-tile{min-height:135px;padding:14px}.module-tile strong{font-size:1.05rem}.module-tile span:last-child{font-size:.82rem}.view-heading{margin:0 0 10px}}
 
 /* Fahrzeugverwaltung: Fahrzeugübersicht über die verfügbare Bildschirmbreite */
 #vehiclesView{width:calc(100vw - 36px);max-width:none;position:relative;left:50%;transform:translateX(-50%)}
@@ -549,28 +549,11 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
 
 /* Linke Hauptnavigation */
 #appScreen{max-width:1100px;margin:0 auto}
-#mainSideNav{position:fixed;left:14px;top:145px;width:168px;z-index:20;display:flex;flex-direction:column;gap:8px}
-#mainSideNav button{width:100%;text-align:left;min-height:48px;padding:10px 12px;border:1px solid #9acdf4;background:#e5f2ff;color:#005a9e}
-#mainSideNav button:hover{background:#cfe8ff}
-body.dark-mode #mainSideNav button{background:#26384d;color:#d6eaff;border-color:#45617e}
 #warehouseInventoryProgress{background:#edf6ff;border:1px solid #c8dced;border-radius:12px;padding:12px 14px;margin:8px 0 14px;font-weight:800;color:#005a9e}
 #warehouseInventoryProgressBar{height:9px;background:#d7e6f5;border-radius:99px;overflow:hidden;margin-top:8px}
 #warehouseInventoryProgressFill{height:100%;width:0;background:#16a34a;border-radius:99px;transition:width .2s}
 body.dark-mode #warehouseInventoryProgress{background:#27364a;border-color:#475569;color:#c5e3ff}
 body.dark-mode #warehouseInventoryProgressBar{background:#475569}
-@media(max-width:700px){
- #mainSideNav{position:static;width:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px;gap:6px}
- #mainSideNav button{font-size:.8rem;text-align:center;padding:8px 5px;min-height:48px}
-}
-
-
-@media (min-width:701px){
- main.wrap:has(#appScreen){max-width:none;padding-left:200px}
- #appScreen{margin-left:auto;margin-right:auto}
-}
-@media(max-width:700px){
- main.wrap:has(#appScreen){padding-left:10px}
-}
 
 </style>
 </head>
@@ -616,30 +599,25 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   </section>
 
   <section id="appScreen" class="hidden">
-    <nav id="mainSideNav" aria-label="Hauptnavigation">
-      <button type="button" id="sideNavWarehouse">1. Lager</button>
-      <button type="button" id="sideNavVehicles">2. Fahrzeuge</button>
-      <button type="button" id="sideNavWarehouseInventory">3. Inventur Lager</button>
-    </nav>
     <div id="notice" class="msg hidden"></div>
 
     <section id="homeView" class="panel">
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
-        <button id="openWarehouseInventoryBtn" class="module-tile" type="button">
-          <span class="module-icon">📦</span><strong>Inventur Lager</strong><span>Lagerbestand zählen, erfassen und exportieren</span>
+        <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
+          <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
         </button>
         <button id="openMaintenanceBtn" class="module-tile" type="button">
           <span class="maintenance-home-alerts" aria-live="polite"><span class="maintenance-alert-badge maintenance-alert-yellow hidden" id="maintenanceDueAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="maintenance-alert-badge maintenance-alert-red hidden" id="maintenanceOverdueAlertBadge" aria-label="Überfällige Wartungen">0</span></span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
         </button>
-        <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
-          <span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
-        </button>
         <button id="openToolsBtn" class="module-tile tools-tile" type="button">
-          <span class="module-icon">🧰</span><strong>Werkzeuge</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
+          <span class="module-icon">🧰</span><strong>Werkzeug</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
         </button>
         <button id="openVehiclesBtn" class="module-tile" type="button">
           <span class="vehicle-alert-badge hidden" id="vehicleAlertBadge" aria-label="Dringende Fahrzeugmeldungen">0</span><span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
+        </button>
+        <button id="openWarehouseInventoryBtn" class="module-tile" type="button">
+          <span class="module-icon">📦</span><strong>Inventur Lager</strong><span>Lagerbestand zählen, erfassen und exportieren</span>
         </button>
         <button id="openFleetInventoryBtn" class="module-tile" type="button">
           <span class="module-icon">📋</span><strong>Inventur Bus</strong><span>Fahrzeuge anlegen, Lagerartikel zählen und Inventur exportieren</span>
@@ -3813,9 +3791,6 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     if(edit)editMaintenanceCustomer(edit.dataset.editMaintenance); if(del)deleteMaintenanceCustomer(del.dataset.deleteMaintenance);
   });
 
-  $('sideNavWarehouse').onclick = () => { showMainView('inventory'); };
-  $('sideNavVehicles').onclick = async () => { showMainView('vehicles'); await loadVehicleRecords(); };
-  $('sideNavWarehouseInventory').onclick = async () => { showMainView('warehouseInventory'); await loadWarehouseInventory(); };
   $('openVehiclesBtn').onclick = async () => { showMainView('vehicles'); await loadVehicleRecords(); };
   $('vehiclesHomeBtn').onclick = () => showMainView('home');
   $('vehicleRecordForm').addEventListener('submit', saveVehicleRecord);
