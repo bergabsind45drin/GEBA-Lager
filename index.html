@@ -546,6 +546,32 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
 .maintenance-home-alerts .maintenance-alert-badge.hidden{display:none!important}
 #openMaintenanceYearBtn{gap:0!important;}
 
+
+/* Linke Hauptnavigation */
+#appScreen{max-width:1100px;margin:0 auto}
+#mainSideNav{position:fixed;left:14px;top:145px;width:168px;z-index:20;display:flex;flex-direction:column;gap:8px}
+#mainSideNav button{width:100%;text-align:left;min-height:48px;padding:10px 12px;border:1px solid #9acdf4;background:#e5f2ff;color:#005a9e}
+#mainSideNav button:hover{background:#cfe8ff}
+body.dark-mode #mainSideNav button{background:#26384d;color:#d6eaff;border-color:#45617e}
+#warehouseInventoryProgress{background:#edf6ff;border:1px solid #c8dced;border-radius:12px;padding:12px 14px;margin:8px 0 14px;font-weight:800;color:#005a9e}
+#warehouseInventoryProgressBar{height:9px;background:#d7e6f5;border-radius:99px;overflow:hidden;margin-top:8px}
+#warehouseInventoryProgressFill{height:100%;width:0;background:#16a34a;border-radius:99px;transition:width .2s}
+body.dark-mode #warehouseInventoryProgress{background:#27364a;border-color:#475569;color:#c5e3ff}
+body.dark-mode #warehouseInventoryProgressBar{background:#475569}
+@media(max-width:700px){
+ #mainSideNav{position:static;width:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px;gap:6px}
+ #mainSideNav button{font-size:.8rem;text-align:center;padding:8px 5px;min-height:48px}
+}
+
+
+@media (min-width:701px){
+ main.wrap:has(#appScreen){max-width:none;padding-left:200px}
+ #appScreen{margin-left:auto;margin-right:auto}
+}
+@media(max-width:700px){
+ main.wrap:has(#appScreen){padding-left:10px}
+}
+
 </style>
 </head>
 <body>
@@ -590,6 +616,11 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
   </section>
 
   <section id="appScreen" class="hidden">
+    <nav id="mainSideNav" aria-label="Hauptnavigation">
+      <button type="button" id="sideNavWarehouse">1. Lager</button>
+      <button type="button" id="sideNavVehicles">2. Fahrzeuge</button>
+      <button type="button" id="sideNavWarehouseInventory">3. Inventur Lager</button>
+    </nav>
     <div id="notice" class="msg hidden"></div>
 
     <section id="homeView" class="panel">
@@ -694,9 +725,14 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       <section class="panel" style="margin-top:16px">
         <div class="row" style="gap:8px;margin-bottom:14px">
           <input id="warehouseInventorySearch" class="search" placeholder="Artikel, Artikelnummer oder Barcode suchen …">
+          <button type="button" id="warehouseInventoryScanBtn">▦ Scannen</button>
           <button type="button" id="warehouseInventoryRefreshBtn" class="secondary">↻ Aktualisieren</button>
           <button type="button" id="warehouseInventoryExportBtn" class="secondary">⇩ Inventur Export</button>
           <button type="button" id="warehouseInventoryResetBtn" class="danger hidden">↻ Zurücksetzen</button>
+        </div>
+        <div id="warehouseInventoryProgress" aria-live="polite">
+          <div><span id="warehouseInventoryProgressText">0/0 Artikel gezählt</span></div>
+          <div id="warehouseInventoryProgressBar"><div id="warehouseInventoryProgressFill"></div></div>
         </div>
         <p class="muted">Erfasse hier den tatsächlich gezählten Bestand der Lagerartikel. Der normale Lagerbestand wird dabei nicht verändert.</p>
         <div id="warehouseInventoryMsg" class="msg hidden"></div>
@@ -2945,6 +2981,12 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
     const q=String($('warehouseInventorySearch')?.value||'').trim().toLowerCase();
     const rows=products.filter(p=>[p.name,p.sku,p.barcode,p.location].some(v=>String(v||'').toLowerCase().includes(q)));
     const counted=new Map(warehouseInventoryRows.map(r=>[r.product_id,r]));
+    const totalArticles=products.length;
+    const countedArticles=products.filter(p=>counted.has(p.id)).length;
+    const progressText=$('warehouseInventoryProgressText');
+    const progressFill=$('warehouseInventoryProgressFill');
+    if(progressText)progressText.textContent=`${countedArticles}/${totalArticles} Artikel gezählt`;
+    if(progressFill)progressFill.style.width=(totalArticles?Math.min(100,countedArticles/totalArticles*100):0)+'%';
     target.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Artikelnummer</th><th>Lagerort</th><th>Bestand laut System</th><th>Gezählt</th><th>Notiz</th><th>Aktion</th></tr></thead><tbody>`+
       rows.map(p=>{const e=counted.get(p.id);return `<tr>
         <td data-label="Artikel"><strong>${escapeHtml(p.name)}</strong></td>
@@ -2957,6 +2999,33 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
       </tr>`}).join('')+'</tbody></table></div>':'<p class="muted">Keine passenden Lagerartikel gefunden.</p>';
     $('warehouseInventoryResetBtn').classList.toggle('hidden',!editorMode);
   }
+  async function scanWarehouseInventoryArticle() {
+    openModal('Lagerartikel scannen', `<p class="muted">Scanne den Barcode oder gib die Artikelnummer manuell ein. Der passende Artikel wird anschließend in der Inventurliste geöffnet.</p><div id="warehouseInventoryReader" style="width:100%;min-height:180px;background:#111;border-radius:12px;overflow:hidden"></div><div class="field" style="margin-top:12px"><label>Barcode / Artikelnummer</label><input id="warehouseInventoryScanCode" placeholder="Code hier eingeben"></div><button id="warehouseInventoryScanContinue" type="button" style="width:100%">Artikel suchen</button><div id="warehouseInventoryScanMsg" class="muted" style="margin-top:8px"></div>`);
+    const selectProduct = async code => {
+      const product = findStockProductByCode(code);
+      if (!product) { $('warehouseInventoryScanMsg').textContent='Kein passender Artikel gefunden. Bitte Barcode oder Artikelnummer prüfen.'; return; }
+      if (html5Scanner) { try { await html5Scanner.stop(); html5Scanner.clear(); } catch(e) {} html5Scanner=null; }
+      closeModal();
+      $('warehouseInventorySearch').value=product.name;
+      renderWarehouseInventory();
+      setTimeout(()=>{
+        const qty=$('warehouseQty_'+product.id);
+        if(qty){qty.scrollIntoView({behavior:'smooth',block:'center'});qty.focus();}
+      },100);
+    };
+    $('warehouseInventoryScanContinue').onclick=()=>selectProduct($('warehouseInventoryScanCode').value);
+    if(!navigator.mediaDevices?.getUserMedia||!window.Html5Qrcode){
+      $('warehouseInventoryScanMsg').textContent='Kamera-Scanner nicht verfügbar. Bitte den Code manuell eingeben.';
+      return;
+    }
+    try{
+      html5Scanner=new Html5Qrcode('warehouseInventoryReader');
+      await html5Scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:150},aspectRatio:1.5},decodedText=>selectProduct(decodedText),()=>{});
+    }catch(e){
+      $('warehouseInventoryScanMsg').textContent='Kamera konnte nicht gestartet werden. Gib den Barcode bitte manuell ein.';
+    }
+  }
+
   async function saveWarehouseCount(productId) {
     if(currentRole!=='office')return notify('Keine Berechtigung.',true);
     const input=$('warehouseQty_'+productId), qty=Number(input?.value);
@@ -3744,6 +3813,9 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     if(edit)editMaintenanceCustomer(edit.dataset.editMaintenance); if(del)deleteMaintenanceCustomer(del.dataset.deleteMaintenance);
   });
 
+  $('sideNavWarehouse').onclick = () => { showMainView('inventory'); };
+  $('sideNavVehicles').onclick = async () => { showMainView('vehicles'); await loadVehicleRecords(); };
+  $('sideNavWarehouseInventory').onclick = async () => { showMainView('warehouseInventory'); await loadWarehouseInventory(); };
   $('openVehiclesBtn').onclick = async () => { showMainView('vehicles'); await loadVehicleRecords(); };
   $('vehiclesHomeBtn').onclick = () => showMainView('home');
   $('vehicleRecordForm').addEventListener('submit', saveVehicleRecord);
@@ -3758,6 +3830,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('openWarehouseInventoryBtn').onclick = async () => { showMainView('warehouseInventory'); await loadWarehouseInventory(); };
   $('warehouseInventoryHomeBtn').onclick = () => showMainView('home');
   $('warehouseInventoryRefreshBtn').onclick = loadWarehouseInventory;
+  $('warehouseInventoryScanBtn').onclick = scanWarehouseInventoryArticle;
   $('warehouseInventoryExportBtn').onclick = exportWarehouseInventory;
   $('warehouseInventoryResetBtn').onclick = resetWarehouseInventory;
   $('warehouseInventorySearch').addEventListener('input',renderWarehouseInventory);
