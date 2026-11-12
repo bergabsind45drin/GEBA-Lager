@@ -2839,14 +2839,14 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       openModal('Bestellliste', '<p>Aktuell müssen keine Artikel nachbestellt werden. Alle Bestände liegen auf oder über dem hinterlegten Mindestbestand.</p>');
       return;
     }
-    const allText = groups.map(([manufacturer, items]) => orderTextForGroup(manufacturer, items)).join('\n\n' + '='.repeat(42) + '\n\n');
     const groupHtml = groups.map(([manufacturer, items], index) => {
       const supplierValue = items.find(item => item.supplier)?.supplier || '';
       const hasOpen = items.some(item => item.status === 'offen');
       const hasReserved = items.some(item => item.status === 'in_bearbeitung');
       const hasOrdered = items.some(item => item.status === 'bestellt');
+      const groupSearch = [manufacturer, supplierValue].join(' ');
       return `
-      <section class="panel order-list-group" style="margin:12px 0;padding:12px">
+      <section class="panel order-list-group" data-order-search-group="${escapeHtml(groupSearch)}" style="margin:12px 0;padding:12px">
         <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
           <strong>${escapeHtml(manufacturer)}</strong>
           <button type="button" class="secondary smallbtn" data-copy-order="${index}">Tabelle kopieren</button>
@@ -2854,7 +2854,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
         <div class="field"><label for="orderSupplier_${index}">Lieferant reservieren / zuordnen</label><input id="orderSupplier_${index}" value="${escapeHtml(supplierValue)}" placeholder="Name des Lieferanten"></div>
         <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th><th>Status</th></tr></thead><tbody>
-          ${items.map(item => `<tr><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td><td>${orderStatusLabel(item.status)}${item.status !== 'offen' ? `<div class="muted" style="font-size:12px;margin-top:4px">${escapeHtml(item.supplier || '')}${item.reservedBy ? ' · ' + escapeHtml(item.reservedBy) : ''}</div>` : ''}</td></tr>`).join('')}
+          ${items.map(item => `<tr data-order-search-row="${escapeHtml([item.sku, item.name].join(' '))}"><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td><td>${orderStatusLabel(item.status)}${item.status !== 'offen' ? `<div class="muted" style="font-size:12px;margin-top:4px">${escapeHtml(item.supplier || '')}${item.reservedBy ? ' · ' + escapeHtml(item.reservedBy) : ''}</div>` : ''}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="row" style="flex-wrap:wrap;margin-top:10px;gap:8px">
           ${hasOpen ? `<button type="button" class="secondary" data-claim-order="${index}">Lieferant übernehmen</button>` : ''}
@@ -2866,11 +2866,28 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     }).join('');
     openModal('Bestellliste nach Hersteller', `
       <p class="muted">Offen = muss bestellt werden. In Bearbeitung = Lieferant ist reserviert. Bestellt = Bestellung wurde abgeschickt. Sobald du einen Wareneingang für einen Artikel buchst, verschwindet dieser aus der Bestellliste.</p>
-      <button type="button" id="copyAllOrdersBtn" style="width:100%;margin-bottom:10px">📋 Alle Bestelltabellen kopieren</button>
+      <div class="field order-search-field" style="margin:12px 0 16px">
+        <label for="orderListSearch">Produkte oder Lieferanten suchen</label>
+        <input id="orderListSearch" type="search" placeholder="Artikelname, Artikelnummer oder Lieferant eingeben …" autocomplete="off">
+      </div>
       ${groupHtml}
     `);
     document.querySelector('#modal .modal-card')?.classList.add('order-list-modal');
-    $('copyAllOrdersBtn').onclick = () => copyOrderText(allText, 'Alle Bestelltexte');
+    $('orderListSearch').addEventListener('input', () => {
+      const term = $('orderListSearch').value.trim().toLocaleLowerCase('de-DE');
+      $('modalContent').querySelectorAll('.order-list-group').forEach(section => {
+        const supplierInput = section.querySelector('input[id^="orderSupplier_"]');
+        const groupText = `${section.dataset.orderSearchGroup || ''} ${supplierInput?.value || ''}`.toLocaleLowerCase('de-DE');
+        const groupMatches = !!term && groupText.includes(term);
+        let visibleRows = 0;
+        section.querySelectorAll('[data-order-search-row]').forEach(row => {
+          const matches = !term || groupMatches || (row.dataset.orderSearchRow || '').toLocaleLowerCase('de-DE').includes(term);
+          row.style.display = matches ? '' : 'none';
+          if (matches) visibleRows++;
+        });
+        section.style.display = !term || groupMatches || visibleRows > 0 ? '' : 'none';
+      });
+    });
     $('modalContent').querySelectorAll('[data-copy-order]').forEach(button => {
       button.onclick = () => { const index = Number(button.dataset.copyOrder); const [manufacturer, items] = groups[index]; copyOrderText(orderTextForGroup(manufacturer, items), manufacturer); };
     });
