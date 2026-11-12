@@ -865,7 +865,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       </div>
       <p class="muted">Wähle oben, ob du Werkzeuge ausgeben oder zurücknehmen möchtest. Der passende Warenkorb wird darunter angezeigt.</p>
       <div id="toolIssueEntryPanel">
-      <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bitte für jedes Werkzeug ein Foto aufnehmen. Bei Rückgabe wird das Ausgabefoto zum Vergleich angezeigt; ein Rücknahmefoto ist zusätzlich möglich.</p>
+      <p class="muted">Ausgaben werden dem Mitarbeiter und der Baustelle zugeordnet. Bitte für jedes Werkzeug ein Foto aufnehmen. Bei Rückgabe wird das Ausgabefoto zum Vergleich angezeigt; ein Rücknahmefoto ist Pflicht.</p>
       <div class="tool-form">
         <div class="field"><label for="toolEmployee">Mitarbeiter</label><input id="toolEmployee" placeholder="Vor- und Nachname"></div>
         <div class="field"><label for="toolSite">Baustelle</label><input id="toolSite" placeholder="Name oder Adresse der Baustelle"></div>
@@ -1596,7 +1596,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       const outstanding = issue ? Math.max(0, Number(issue.quantity || 0) - Number(issue.returned_quantity || 0)) : 0;
       return `<tr><td>${escapeHtml(issue?.tools?.name || issue?.tool_name_snapshot || 'Werkzeug')}<br><span class="muted">${escapeHtml(issue?.employee_name || '')} · ${escapeHtml(issue?.site_name || '')}</span>
         ${photoPreview(issue?.issue_photo_url, 'So wurde es ausgegeben')}
-        <div class="field" style="margin:8px 0 0"><label>Rücknahmefoto (optional)</label><input type="file" accept="image/*" capture="environment" data-tool-return-photo="${index}" style="max-width:240px"><span class="muted">${item.photoFile ? 'Foto ausgewählt: ' + escapeHtml(item.photoFile.name || 'Kamerafoto') : 'Bei Bedarf Zustand bei Rückgabe fotografieren.'}</span></div>
+        <div class="field" style="margin:8px 0 0"><label>Rücknahmefoto (Pflicht)</label><input type="file" accept="image/*" capture="environment" data-tool-return-photo="${index}" required style="max-width:240px"><span class="muted">${item.photoFile ? 'Foto ausgewählt: ' + escapeHtml(item.photoFile.name || 'Kamerafoto') : 'Bitte vor der Rückgabebuchung ein Foto aufnehmen oder auswählen.'}</span></div>
       </td><td>${outstanding.toLocaleString('de-DE')}</td><td><b>${outstanding.toLocaleString('de-DE')} Stück</b></td><td><button type="button" class="secondary smallbtn" data-tool-return-remove="${index}">Entfernen</button></td></tr>`;
     }).join('') || '<tr><td colspan="4" class="muted">Der Werkzeug-Rückgabe-Warenkorb ist leer. Füge unten bei einer offenen Ausgabe ein Werkzeug hinzu.</td></tr>';
   }
@@ -1695,6 +1695,18 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       return;
     }
 
+    // Vor dem Start alle Warenkorbpositionen prüfen, damit keine Rückgabe
+    // ohne zugehöriges Rücknahmefoto gebucht werden kann.
+    const missingPhoto = toolReturnCart.find(item => !item.photoFile);
+    if (missingPhoto) {
+      showToolReturnCartMessage('Bitte für jedes Werkzeug ein Rücknahmefoto aufnehmen oder auswählen. Ohne Foto ist keine Rückgabebuchung möglich.', true);
+      const missingIndex = toolReturnCart.indexOf(missingPhoto);
+      const photoInput = document.querySelector(`[data-tool-return-photo="${missingIndex}"]`);
+      photoInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      photoInput?.focus();
+      return;
+    }
+
     const button = $('checkoutToolReturnCartBtn');
     if (button) button.disabled = true;
     let completed = 0;
@@ -1703,28 +1715,21 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     try {
       for (const item of [...toolReturnCart]) {
         try {
-          await bookToolReturn(item.issueId, item.quantity);
+          // Das Pflichtfoto zuerst hochladen und verknüpfen. Erst wenn das
+          // erfolgreich war, wird die Rückgabe und der Lagerzugang gebucht.
+          const path = await uploadToolPhoto(item.photoFile, item.issueId, 'ruecknahme');
+          const { error: photoError } = await client.rpc('set_tool_issue_photo', {
+            p_issue_id: item.issueId,
+            p_photo_kind: 'return',
+            p_photo_path: path
+          });
+          if (photoError) throw new Error('Rücknahmefoto konnte nicht gespeichert werden: ' + photoError.message);
 
-          // Foto ist optional. Ein Fotofehler macht die Rückgabebuchung nicht rückgängig.
-          let photoWarning = '';
-          if (item.photoFile) {
-            try {
-              const path = await uploadToolPhoto(item.photoFile, item.issueId, 'ruecknahme');
-              const { error: photoError } = await client.rpc('set_tool_issue_photo', {
-                p_issue_id: item.issueId,
-                p_photo_kind: 'return',
-                p_photo_path: path
-              });
-              if (photoError) throw photoError;
-            } catch (photoError) {
-              photoWarning = ' Rückgabe gespeichert, aber Foto nicht gespeichert: ' + (photoError?.message || String(photoError));
-            }
-          }
+          await bookToolReturn(item.issueId, item.quantity);
 
           toolReturnCart = toolReturnCart.filter(x => String(x.issueId) !== String(item.issueId));
           completed++;
           renderToolReturnCart();
-          if (photoWarning) showToolReturnCartMessage(photoWarning, true);
         } catch (error) {
           failed = true;
           showToolReturnCartMessage('Rückgabe nicht gebucht: ' + (error?.message || String(error)) + ' Der Eintrag bleibt im Warenkorb.', true);
