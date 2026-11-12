@@ -1140,7 +1140,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     // Bilder werden erst beim Öffnen eines einzelnen Artikels nachgeladen.
     const [p, m, ti, t] = await Promise.all([
       client.from('products')
-        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location,pack_size,pack_unit,reorder_status,reorder_supplier,reorder_reserved_by,reorder_reserved_at,reorder_ordered_at,reorder_snoozed')
+        .select('id,name,sku,barcode,quantity,unit,min_quantity,target_quantity,location,pack_size,pack_unit,reorder_status,reorder_supplier,reorder_reserved_by,reorder_reserved_at,reorder_ordered_at,reorder_status_changed_at,reorder_snoozed,created_at')
         .order('name').limit(1001),
       client.from('stock_movements')
         .select('id,product_id,delta,reason,created_at,user_email,products(name)')
@@ -2758,7 +2758,8 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         supplier: product.reorder_supplier || '',
         reservedBy: product.reorder_reserved_by || '',
         reservedAt: product.reorder_reserved_at || null,
-        orderedAt: product.reorder_ordered_at || null
+        orderedAt: product.reorder_ordered_at || null,
+        statusAt: product.reorder_status_changed_at || product.reorder_ordered_at || product.reorder_reserved_at || product.created_at || null
       });
     });
     return [...groups.entries()].sort((a, b) => {
@@ -2779,6 +2780,13 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     if (status === 'in_bearbeitung') return '<span class="pill" style="background:#fff3cd;color:#805b00">In Bearbeitung</span>';
     if (status === 'bestellt') return '<span class="pill" style="background:#dbeafe;color:#1d4ed8">Bestellt</span>';
     return '<span class="pill" style="background:#fee2e2;color:#b91c1c">Offen</span>';
+  }
+
+  function orderStatusDate(item) {
+    if (!item.statusAt) return '';
+    const date = new Date(item.statusAt);
+    if (Number.isNaN(date.getTime())) return '';
+    return `<span class=\"muted\" style=\"font-size:11px;margin-left:6px;white-space:nowrap\">seit ${date.toLocaleDateString('de-DE')}</span>`;
   }
 
   function getOrderListScrollPosition() {
@@ -2802,7 +2810,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     const { data, error } = await client.from('products').update({
       reorder_status: 'in_bearbeitung', reorder_supplier: supplier,
       reorder_reserved_by: currentUser?.email || currentUser?.id || 'Nutzer',
-      reorder_reserved_at: new Date().toISOString()
+      reorder_reserved_at: new Date().toISOString(), reorder_status_changed_at: new Date().toISOString()
     }).in('id', ids).eq('reorder_status', 'offen').select('id');
     if (error) { notify('Bestellung konnte nicht übernommen werden: ' + error.message, true); return; }
     if (!data?.length) { notify('Ein anderer Mitarbeiter hat diese Bestellung bereits übernommen. Bitte aktualisieren.', true); await refreshAll(); openOrderList(scrollPosition); return; }
@@ -2823,7 +2831,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     const { data, error } = await client.from('products').update({
       reorder_status: 'bestellt', reorder_supplier: supplier,
       reorder_reserved_by: currentUser?.email || currentUser?.id || 'Nutzer',
-      reorder_ordered_at: new Date().toISOString()
+      reorder_ordered_at: new Date().toISOString(), reorder_status_changed_at: new Date().toISOString()
     }).in('id', ids).eq('reorder_status', 'in_bearbeitung').select('id');
     if (error) { notify('Status konnte nicht auf „Bestellt“ gesetzt werden: ' + error.message, true); return; }
     await refreshAll(); openOrderList(scrollPosition);
@@ -2839,7 +2847,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     if (!ids.length) return;
     const { error } = await client.from('products').update({
       reorder_status: 'offen', reorder_supplier: null, reorder_reserved_by: null,
-      reorder_reserved_at: null, reorder_ordered_at: null
+      reorder_reserved_at: null, reorder_ordered_at: null, reorder_status_changed_at: new Date().toISOString()
     }).in('id', ids);
     if (error) { notify('Bestellung konnte nicht freigegeben werden: ' + error.message, true); return; }
     await refreshAll(); openOrderList(scrollPosition); notify('Bestellung wurde wieder freigegeben.');
@@ -2866,7 +2874,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         <p class="muted" style="margin:6px 0">${items.length} Artikel</p>
         <div class="field"><label for="orderSupplier_${index}">Lieferant reservieren / zuordnen</label><input id="orderSupplier_${index}" value="${escapeHtml(supplierValue)}" placeholder="Name des Lieferanten"></div>
         <div class="table-wrap"><table><thead><tr><th>Artikelnummer</th><th>Artikel</th><th>Bestellmenge</th><th>Status</th></tr></thead><tbody>
-          ${items.map(item => `<tr data-order-search-row="${escapeHtml([item.sku, item.name].join(' '))}"><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td><td>${orderStatusLabel(item.status)}${item.status !== 'offen' ? `<div class="muted" style="font-size:12px;margin-top:4px">${escapeHtml(item.supplier || '')}${item.reservedBy ? ' · ' + escapeHtml(item.reservedBy) : ''}</div>` : ''}</td></tr>`).join('')}
+          ${items.map(item => `<tr data-order-search-row="${escapeHtml([item.sku, item.name].join(' '))}"><td>${escapeHtml(item.sku)}</td><td>${escapeHtml(item.name)}</td><td><strong>${escapeHtml(String(Number(item.quantity)).padStart(2, '0'))} ${escapeHtml(item.unit)}</strong></td><td>${orderStatusLabel(item.status)}${orderStatusDate(item)}${item.status !== 'offen' ? `<div class="muted" style="font-size:12px;margin-top:4px">${escapeHtml(item.supplier || '')}${item.reservedBy ? ' · ' + escapeHtml(item.reservedBy) : ''}</div>` : ''}</td></tr>`).join('')}
         </tbody></table></div>
         <div class="row" style="flex-wrap:wrap;margin-top:10px;gap:8px">
           ${hasOpen ? `<button type="button" class="secondary" data-claim-order="${index}">Lieferant übernehmen</button>` : ''}
