@@ -610,6 +610,61 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   position: static !important;
 }
 
+
+/* Wartungsregister: Kopfzeile beim Scrollen fixieren und Spalten passend zu 10 Überschriften ausrichten. */
+@media (min-width: 851px) {
+  #maintenanceTable {
+    table-layout: fixed !important;
+  }
+  #maintenanceTable thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    background: #e8eef5 !important;
+    box-shadow: 0 2px 3px rgba(15, 23, 42, .12);
+  }
+  #maintenanceTable th:nth-child(1) { width: 5% !important; }
+  #maintenanceTable th:nth-child(2) { width: 7% !important; }
+  #maintenanceTable th:nth-child(3) { width: 19% !important; }
+  #maintenanceTable th:nth-child(4) { width: 10% !important; }
+  #maintenanceTable th:nth-child(5) { width: 8% !important; }
+  #maintenanceTable th:nth-child(6) { width: 11% !important; }
+  #maintenanceTable th:nth-child(7) { width: 9% !important; }
+  #maintenanceTable th:nth-child(8) { width: 9% !important; }
+  #maintenanceTable th:nth-child(9) { width: 10% !important; }
+  #maintenanceTable th:nth-child(10) { width: 12% !important; }
+  body.dark-mode #maintenanceTable thead th {
+    background: #334155 !important;
+    color: #f1f5f9 !important;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, .35);
+  }
+}
+
+/* Alle Register-Benachrichtigungszahlen: identische runde Form, Größe und Zahlendarstellung. */
+.maintenance-tab-count,
+.maintenance-alert-badge,
+.maintenance-home-alerts .maintenance-alert-badge,
+.vehicle-alert-badge,
+.inventory-reorder-badge {
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  font-variant-numeric: tabular-nums !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
 </style>
 </head>
 <body>
@@ -660,16 +715,16 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       <h2>Was möchtest du öffnen?</h2>
       <div class="module-tiles">
         <button id="openInventoryBtn" class="module-tile inventory-tile" type="button">
-          <span class="inventory-reorder-badge hidden" id="inventoryReorderBadge" aria-label="Artikel müssen nachbestellt werden">0</span><span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
+          <span class="inventory-reorder-badge hidden" id="inventoryReorderBadge" aria-label="Artikel müssen nachbestellt werden"></span><span class="module-icon">📦</span><strong>Lager</strong><span>Bestände, Artikel, Scannen und Buchungen</span>
         </button>
         <button id="openMaintenanceBtn" class="module-tile" type="button">
-          <span class="maintenance-home-alerts" aria-live="polite"><span class="maintenance-alert-badge maintenance-alert-yellow hidden" id="maintenanceDueAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen">0</span><span class="maintenance-alert-badge maintenance-alert-red hidden" id="maintenanceOverdueAlertBadge" aria-label="Überfällige Wartungen">0</span></span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
+          <span class="maintenance-home-alerts" aria-live="polite"><span class="maintenance-alert-badge maintenance-alert-yellow hidden" id="maintenanceDueAlertBadge" aria-label="Im aktuellen Monat fällige Wartungen"></span><span class="maintenance-alert-badge maintenance-alert-red hidden" id="maintenanceOverdueAlertBadge" aria-label="Überfällige Wartungen"></span></span><span class="module-icon">🛠️</span><strong>Wartung</strong><span>Wartungskunden, Fälligkeiten, Verträge und Abrechnungen</span>
         </button>
         <button id="openToolsBtn" class="module-tile tools-tile" type="button">
           <span class="module-icon">🧰</span><strong>Werkzeug</strong><span>Mitarbeiter, Baustellen, Ausgaben und Rückgaben</span>
         </button>
         <button id="openVehiclesBtn" class="module-tile" type="button">
-          <span class="vehicle-alert-badge hidden" id="vehicleAlertBadge" aria-label="Dringende Fahrzeugmeldungen">0</span><span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
+          <span class="vehicle-alert-badge hidden" id="vehicleAlertBadge" aria-label="Dringende Fahrzeugmeldungen"></span><span class="module-icon">🚐</span><strong>Fahrzeuge</strong><span>Fahrzeugbereich</span>
         </button>
         <button id="openWarehouseInventoryBtn" class="module-tile" type="button">
           <span class="module-icon">📦</span><strong>Inventur Lager</strong><span>Lagerbestand zählen, erfassen und exportieren</span>
@@ -1229,7 +1284,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     $('lowCount').textContent = reorderCount;
     const reorderBadge = $('inventoryReorderBadge');
     if (reorderBadge) {
-      reorderBadge.textContent = reorderCount;
+      reorderBadge.textContent = reorderCount > 0 ? String(reorderCount) : '';
       reorderBadge.classList.toggle('hidden', reorderCount === 0);
       reorderBadge.setAttribute('aria-label', `${reorderCount} Artikel müssen nachbestellt werden`);
     }
@@ -3510,7 +3565,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     const count = vehicleRecords.reduce((total, vehicle) => total + vehicleDueDates(vehicle).length, 0);
     const badge = $('vehicleAlertBadge');
     if (!badge) return;
-    badge.textContent = String(count);
+    badge.textContent = count > 0 ? String(count) : '';
     badge.classList.toggle('hidden', count === 0);
     badge.setAttribute('aria-label', count + ' dringende Fahrzeugmeldungen');
   }
@@ -3620,8 +3675,8 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     const counts=maintenanceYearCounts(currentYear);
     const dueBadge=$('maintenanceDueAlertBadge');
     const overdueBadge=$('maintenanceOverdueAlertBadge');
-    if(dueBadge){dueBadge.textContent=String(counts.due);dueBadge.classList.toggle('hidden',counts.due===0);}
-    if(overdueBadge){overdueBadge.textContent=String(counts.overdue);overdueBadge.classList.toggle('hidden',counts.overdue===0);}
+    if(dueBadge){dueBadge.textContent=counts.due>0?String(counts.due):'';dueBadge.classList.toggle('hidden',counts.due===0);}
+    if(overdueBadge){overdueBadge.textContent=counts.overdue>0?String(counts.overdue):'';overdueBadge.classList.toggle('hidden',counts.overdue===0);}
     const hint=$('maintenanceDueHint');
     if(hint)hint.textContent=counts.due+' Wartung'+(counts.due===1?' ist':'en sind')+' im '+new Date().toLocaleDateString('de-DE',{month:'long'})+' fällig; '+counts.overdue+' überfällig.';
   }
