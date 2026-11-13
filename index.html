@@ -579,6 +579,36 @@ body.dark-mode #maintenanceTable tbody tr.maintenance-overdue td::before {
 body.dark-mode #warehouseInventoryProgress{background:#27364a;border-color:#475569;color:#c5e3ff}
 body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
+
+
+/* Einheitliches Design für sämtliche Benachrichtigungszahlen */
+.maintenance-tab-count,
+.maintenance-alert-badge,
+.maintenance-home-alerts .maintenance-alert-badge,
+.vehicle-alert-badge,
+.inventory-reorder-badge {
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums !important;
+  white-space: nowrap !important;
+}
+.maintenance-home-alerts .maintenance-alert-badge {
+  position: static !important;
+}
+
 </style>
 </head>
 <body>
