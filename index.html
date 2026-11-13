@@ -598,6 +598,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   height: 28px !important;
   padding: 0 !important;
   border-radius: 50% !important;
+  color: #000 !important;
   font-size: 12px !important;
   line-height: 1 !important;
   font-weight: 800 !important;
@@ -3880,8 +3881,8 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     select.value=maintenanceActiveYear;
     const tabs=$('maintenanceYearTabs');
     const badgesFor=counts=>
-      '<span class="maintenance-tab-count maintenance-tab-yellow" title="'+counts.due+' Wartung(en) im aktuellen Monat fällig" aria-label="'+counts.due+' im aktuellen Monat fällig">'+counts.due+'</span>'+
-      '<span class="maintenance-tab-count maintenance-tab-red" title="'+counts.overdue+' überfällige Wartung(en)" aria-label="'+counts.overdue+' überfällig">'+counts.overdue+'</span>';
+      (counts.due > 0 ? '<span class="maintenance-tab-count maintenance-tab-yellow" title="'+counts.due+' Wartung(en) im aktuellen Monat fällig" aria-label="'+counts.due+' im aktuellen Monat fällig">'+counts.due+'</span>' : '')+
+      (counts.overdue > 0 ? '<span class="maintenance-tab-count maintenance-tab-red" title="'+counts.overdue+' überfällige Wartung(en)" aria-label="'+counts.overdue+' überfällig">'+counts.overdue+'</span>' : '');
     if(tabs)tabs.innerHTML=sorted.map(y=>{
       const counts=maintenanceYearCounts(y);
       return '<button type="button" role="tab" aria-selected="'+(y===maintenanceActiveYear?'true':'false')+'" class="maintenance-year-tab '+(y===maintenanceActiveYear?'active':'')+'" data-maintenance-year="'+escapeHtml(y)+'"><span>'+escapeHtml(y)+'</span>'+badgesFor(counts)+'</button>';
