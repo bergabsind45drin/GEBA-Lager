@@ -2821,7 +2821,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
   function exportCsv() {
     const rows = [
-      ['name', 'sku', 'barcode', 'quantity', 'unit', 'min_quantity', 'target_quantity', 'location', 'pack_size', 'pack_unit'],
+      ['Artikelname', 'Artikelnummer', 'Barcode', 'Bestand', 'Einheit', 'Mindestbestand', 'Sollbestand', 'Lagerort', 'Packungsgröße', 'Packungseinheit'],
       ...products.map(p => [
         p.name, p.sku, p.barcode, p.quantity, p.unit, p.min_quantity, p.target_quantity ?? p.min_quantity, p.location, p.pack_size ?? 1, p.pack_unit || 'Stück'
       ])
@@ -3315,7 +3315,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   function exportWarehouseInventory() {
     const cell=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
     const counted=new Map(warehouseInventoryRows.map(r=>[r.product_id,r]));
-    const rows=[['Artikel','Artikelnummer','Barcode','Lagerort','Bestand laut System','Gezählte Menge','Differenz','Einheit','Notiz','Erfasst von']];
+    const rows=[['Artikel','Artikelnummer','Barcode','Lagerort','Systembestand','Gezählte Menge','Differenz','Einheit','Notiz','Erfasst von']];
     [...products].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'de')).forEach(p=>{
       const e=counted.get(p.id), actual=e?Number(e.quantity):'';
       rows.push([p.name,p.sku||'',p.barcode||'',p.location||'',Number(p.quantity||0).toLocaleString('de-DE'),actual===''?'':actual.toLocaleString('de-DE'),actual===''?'':(actual-Number(p.quantity||0)).toLocaleString('de-DE'),p.unit||'Stück',e?.notes||'',e?.counted_by||'']);
@@ -3519,7 +3519,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     };
     const rows = [[
       'Fahrzeug', 'Kennzeichen', 'Fahrzeugnotiz',
-      'Artikel', 'Artikelnummer', 'Gezählte Menge', 'Einheit', 'Artikelnotiz', 'Inventur aufgenommen von'
+      'Artikel', 'Artikelnummer', 'Gezählte Menge', 'Einheit', 'Artikelnotiz', 'Inventur erfasst von'
     ]];
     const sortedVehicles = [...fleetVehicles].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'de'));
     sortedVehicles.forEach(vehicle => {
