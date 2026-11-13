@@ -665,6 +665,17 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   white-space: nowrap !important;
 }
 
+
+/* Badge komplett ausblenden, wenn keine Meldung vorhanden ist.
+   Höhere Spezifität verhindert, dass display:inline-flex der Badge-Regeln
+   die hidden-Klasse übersteuert. */
+.vehicle-alert-badge.hidden,
+.inventory-reorder-badge.hidden,
+.maintenance-tab-count.hidden,
+.maintenance-alert-badge.hidden {
+  display: none !important;
+}
+
 </style>
 </head>
 <body>
