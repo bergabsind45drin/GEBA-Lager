@@ -1063,6 +1063,16 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   let client = null;
   let currentUser = null;
   let currentRole = 'office';
+  // Zentrale Synchronisierung: Realtime zuerst, 60-Sekunden-Fallback nur bei Verbindungsproblemen.
+  let activeView = 'home';
+  let realtimeChannel = null;
+  let realtimeConnected = false;
+  let syncFallbackTimer = null;
+  let syncDebounceTimer = null;
+  let syncLastRun = 0;
+  let syncRunning = false;
+  let syncQueued = false;
+  const pendingLiveTables = new Set();
   const MONTEUR_LOGIN_URL = 'https://rjdyqjzbqbgemzlqbvba.supabase.co/functions/v1/monteur-login';
   let products = [];
   let tools = [];
@@ -1151,6 +1161,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         } else {
           currentUser = null;
           editorMode = false;
+          stopLiveSync();
           hide('appScreen');
           show('loginScreen');
           hide('headerUser');
@@ -1159,6 +1170,140 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     } catch (e) {
       show('configScreen');
       notify('Verbindungseinstellungen prüfen.', true);
+    }
+  }
+
+  function stopLiveSync() {
+    if (syncFallbackTimer) { clearInterval(syncFallbackTimer); syncFallbackTimer = null; }
+    if (syncDebounceTimer) { clearTimeout(syncDebounceTimer); syncDebounceTimer = null; }
+    realtimeConnected = false;
+    if (realtimeChannel && client) {
+      const oldChannel = realtimeChannel;
+      realtimeChannel = null;
+      try { client.removeChannel(oldChannel); } catch (e) {}
+    }
+  }
+
+  function tableAffectsVisibleView(table) {
+    if (currentRole === 'monteur' || activeView === 'fleet')
+      return ['products','fleet_vehicles','vehicle_inventory'].includes(table);
+    if (activeView === 'maintenance') return table === 'maintenance_customers';
+    if (activeView === 'vehicles') return table === 'fleet_vehicles';
+    if (activeView === 'warehouseInventory') return ['products','warehouse_inventory'].includes(table);
+    if (activeView === 'home') return ['products','maintenance_customers','tools','tool_issues','stock_movements'].includes(table);
+    return ['products','tools','tool_issues','stock_movements'].includes(table);
+  }
+
+  async function refreshVisibleView(isFallback = false, changedTables = []) {
+    if (!client || !currentUser || document.visibilityState === 'hidden' || syncRunning) return;
+    syncRunning = true;
+    try {
+      if (currentRole === 'monteur' || activeView === 'fleet') {
+        if (currentRole === 'monteur') {
+          await loadFleetForMonteur();
+        } else {
+          if (changedTables.includes('products')) {
+            const {data,error} = await client.from('products')
+              .select('id,name,sku,barcode,quantity,unit').order('name').limit(1001);
+            if (!error) products = data || [];
+          }
+          await loadFleetInventory();
+        }
+      } else if (activeView === 'maintenance') {
+        await loadMaintenanceCustomers();
+      } else if (activeView === 'vehicles') {
+        await loadVehicleRecords();
+      } else if (activeView === 'warehouseInventory') {
+        await loadWarehouseInventory();
+      } else {
+        // Gemeinsame Bestandsdaten nur in den Ansichten aktualisieren, die sie anzeigen.
+        await refreshAll();
+        if (activeView === 'home' && (isFallback || changedTables.includes('maintenance_customers')))
+          await loadMaintenanceCustomers();
+      }
+      syncLastRun = Date.now();
+    } catch (e) {
+      console.warn('Hintergrundaktualisierung fehlgeschlagen:', e);
+    } finally {
+      syncRunning = false;
+      if (syncQueued) {
+        syncQueued = false;
+        const tables = [...pendingLiveTables];
+        pendingLiveTables.clear();
+        queueLiveRefresh(...tables);
+      }
+    }
+  }
+
+  function queueLiveRefresh(...tables) {
+    if (!currentUser || !client) return;
+    tables.forEach(table => pendingLiveTables.add(table));
+    if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+    // Mehrere Tabellenänderungen eines Speichervorgangs werden zu einem Refresh gebündelt.
+    syncDebounceTimer = setTimeout(() => {
+      syncDebounceTimer = null;
+      const changed = [...pendingLiveTables];
+      pendingLiveTables.clear();
+      const relevant = changed.filter(tableAffectsVisibleView);
+      if (!relevant.length) return;
+      if (syncRunning) {
+        relevant.forEach(table => pendingLiveTables.add(table));
+        syncQueued = true;
+        return;
+      }
+      refreshVisibleView(false, relevant);
+    }, 850);
+  }
+
+  function startFallbackSync() {
+    if (syncFallbackTimer || !currentUser) return;
+    syncFallbackTimer = setInterval(() => {
+      if (!realtimeConnected && document.visibilityState === 'visible' &&
+          Date.now() - syncLastRun >= 55000) {
+        refreshVisibleView(true);
+      }
+    }, 60000);
+  }
+
+  function startLiveSync() {
+    if (!client || !currentUser) return;
+    stopLiveSync();
+
+    const watchedTables = [
+      'products', 'stock_movements', 'tools', 'tool_issues',
+      'maintenance_customers', 'fleet_vehicles', 'vehicle_inventory',
+      'warehouse_inventory'
+    ];
+    let channel = client.channel('geba-live-sync');
+    watchedTables.forEach(table => {
+      channel = channel.on('postgres_changes',
+        { event: '*', schema: 'public', table },
+        () => {
+          // Nur den gerade geöffneten, betroffenen Bereich aktualisieren.
+          queueLiveRefresh(table);
+        }
+      );
+    });
+    realtimeChannel = channel.subscribe(status => {
+      if (status === 'SUBSCRIBED') {
+        realtimeConnected = true;
+        if (syncFallbackTimer) { clearInterval(syncFallbackTimer); syncFallbackTimer = null; }
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        realtimeConnected = false;
+        startFallbackSync();
+      }
+    });
+
+    // Bei Rückkehr in den Browser veraltete Daten einmalig nachziehen.
+    if (!window.__gebaVisibilitySyncBound) {
+      window.__gebaVisibilitySyncBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && currentUser &&
+            Date.now() - syncLastRun > 30000) refreshVisibleView();
+      });
+      window.addEventListener('focus', () => {
+        if (currentUser && Date.now() - syncLastRun > 30000) refreshVisibleView();
+      });
     }
   }
 
@@ -1192,6 +1337,8 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       // auf der Wartungs-Kachel sofort nach Anmeldung/Neuladen erscheinen.
       await loadMaintenanceCustomers();
     }
+    syncLastRun = Date.now();
+    startLiveSync();
   }
 
   async function loadFleetForMonteur() {
@@ -1203,7 +1350,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       client.from('vehicle_inventory').select('id,vehicle_id,product_id,quantity,notes,counted_by,products(name,sku,unit)').order('created_at')
     ]);
     if (v.error || a.error) { notify('Fahrzeuginventur konnte nicht geladen werden: ' + (v.error || a.error).message, true); return; }
-    fleetVehicles = v.data || []; fleetAssignments = a.data || [];
+    fleetVehicles = v.data || []; fleetAssignments = a.data || []; syncLastRun = Date.now();
     renderFleetVehicles(); renderFleetSelects(); renderFleetAssignments();
     show('fleetCountPanel'); hide('fleetCreatePanel');
   }
@@ -1245,6 +1392,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
   async function refreshAll() {
     if (!client || !currentUser) return;
+    syncLastRun = Date.now();
 
     // Bildcache leeren, damit neu gespeicherte oder geänderte Fotos sofort erscheinen.
     productImageCache.clear();
@@ -3233,7 +3381,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       $('warehouseInventoryMsg').textContent='Lagerinventur konnte nicht geladen werden: '+err.message+' – bitte das SQL für warehouse_inventory einmalig im Supabase-Editor ausführen.';
       show('warehouseInventoryMsg'); $('warehouseInventoryList').innerHTML=''; return;
     }
-    products=p.data||products; warehouseInventoryRows=c.data||[];
+    products=p.data||products; warehouseInventoryRows=c.data||[]; syncLastRun = Date.now();
     hide('warehouseInventoryMsg'); renderWarehouseInventory();
   }
   function renderWarehouseInventory() {
@@ -3569,7 +3717,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
       $('vehicleRecordsList').innerHTML = '<p class="error">Fahrzeugdaten konnten nicht geladen werden: ' + escapeHtml(error.message) + '<br>Bitte zuerst das SQL für die Fahrzeugverwaltung in Supabase ausführen.</p>';
       return;
     }
-    vehicleRecords = data || [];
+    vehicleRecords = data || []; syncLastRun = Date.now();
     renderVehicleRecords();
   }
   function formatVehicleDate(value) {
@@ -3710,7 +3858,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   async function loadMaintenanceCustomers() {
     const {data,error} = await client.from('maintenance_customers').select('*').order('customer',{ascending:true});
     if(error){ $('maintenanceTableWrap').innerHTML = '<p class="msg error">Wartungsdaten konnten nicht geladen werden: '+escapeHtml(error.message)+'<br>Prüfe, ob das Wartungs-SQL in Supabase ausgeführt wurde.</p>'; return; }
-    maintenanceRows = data || []; renderMaintenanceCustomers(); renderMaintenanceYearTable();
+    maintenanceRows = data || []; renderMaintenanceCustomers(); renderMaintenanceYearTable(); syncLastRun = Date.now();
   }
   function renderMaintenanceCustomers(){
     updateMaintenanceBadge();
@@ -4034,6 +4182,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
 
   function showMainView(view) {
     if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
+    activeView = view || 'home';
     hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('warehouseInventoryView'); hide('maintenanceView');
     if (view === 'warehouseInventory') show('warehouseInventoryView');
     else if (view === 'maintenance') show('maintenanceView');
