@@ -2249,6 +2249,26 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
     return searchTextMatches(searchable, rawQuery);
   }
 
+  // QR-/Barcode-Zuordnung: zuerst normalisiert exakt vergleichen.
+  // Falls die Artikelliste den Code über ihre Teilwortsuche findet, wird
+  // dieser Treffer nur übernommen, wenn er eindeutig ist.
+  function findProductByCode(code) {
+    const normalizedCode = normalizeSearchText(code).replace(/\s+/g, '');
+    if (!normalizedCode) return null;
+
+    const exactMatch = products.find(product =>
+      [product.barcode, product.sku, product.id].some(value =>
+        normalizeSearchText(value).replace(/\s+/g, '') === normalizedCode
+      )
+    );
+    if (exactMatch) return exactMatch;
+
+    const matches = products.filter(product =>
+      productMatchesSearch(product, code, ['sku', 'barcode'])
+    );
+    return matches.length === 1 ? matches[0] : null;
+  }
+
   function renderProducts() {
     const q = $('search').value.trim();
 
@@ -2785,11 +2805,7 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
   function bookingForm(p = null, initialCode = '') {
     if (!p && initialCode) {
-      p = products.find(x =>
-        x.barcode === initialCode ||
-        x.sku === initialCode ||
-        x.id === initialCode
-      );
+      p = findProductByCode(initialCode);
     }
 
     openModal('Material buchen', `
@@ -2852,11 +2868,12 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
     $('bProduct').addEventListener('change', updateBookingProductLocation);
     $('bCode').addEventListener('change', () => {
-      const code = $('bCode').value.trim();
-      const match = products.find(x => x.barcode === code || x.sku === code);
-      if (match) $('bProduct').value = match.id;
+      const match = findProductByCode($('bCode').value);
+      $('bProduct').value = match ? match.id : '';
       updateBookingProductLocation();
     });
+    // Auch direkt nach dem QR-Scan die vorausgewählte Zuordnung anzeigen.
+    updateBookingProductLocation();
 
     $('doBooking').onclick = async () => {
       const productId = $('bProduct').value;
