@@ -730,9 +730,12 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
 .employee-week{width:100%;border-collapse:collapse;min-width:570px;table-layout:fixed;font-weight:700;text-align:center}
 .employee-week th,.employee-week td{border:1px solid #333;padding:7px 5px}
 .employee-week thead th{background:#f1f3f5;color:#111}
-.employee-week .employee-name-cell{width:112px;text-align:left;background:#fff;color:#111}
+.employee-week .employee-name-cell{width:112px;text-align:center;background:#fff;color:#111}
 .employee-week .week-number{background:#fff;text-align:left}
-.employee-week td{height:38px;font-size:18px}
+.employee-week td{height:38px;font-size:18px;text-align:center;vertical-align:middle;padding:4px}
+.employee-week td.employee-editable{cursor:pointer;text-align:center;vertical-align:middle}
+.employee-week td.employee-editable:hover{outline:2px solid #1769aa;outline-offset:-2px}
+.employee-week td .employee-cell-select{width:100%;min-width:0;padding:5px 2px;font-size:13px;text-align:center;border:1px solid #1769aa;border-radius:5px;background:#fff;color:#111}
 .employee-week td.planned{background:#c6efce;color:#008000}
 .employee-week td.sick{background:#ffeb9c;color:#9c6500}
 .employee-week td.open{background:#ff0000;color:#111}
@@ -4376,7 +4379,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     people.forEach((person,index)=>{
       if(person.apprentice&&(!index||!people[index-1].apprentice))html+='<tr class="apprentice-start"><td colspan="6" style="background:#888;height:8px;padding:0"></td></tr>';
       html+='<tr><th class="employee-name-cell">'+escapeHtml(person.name)+'</th>';
-      days.forEach(d=>{const date=iso(d);const entry=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===person.name.toLocaleLowerCase('de-DE'));const st=entry&&statusMap[entry.status];html+=st?'<td class="'+st[1]+'" title="'+({planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub',school:'Berufsschule'}[entry.status])+'">'+st[0]+'</td>':'<td class="empty-day">-</td>';});
+      days.forEach(d=>{const date=iso(d);const entry=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===person.name.toLocaleLowerCase('de-DE'));const st=entry&&statusMap[entry.status];const symbol=st?st[0]:'-';const cls=st?st[1]:'empty-day';const label=entry?({planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub',school:'Berufsschule'}[entry.status]):'Nicht eingetragen';html+='<td class="'+cls+' employee-editable" data-employee-cell="1" data-employee-name="'+escapeHtml(person.name)+'" data-employee-date="'+date+'" title="'+label+' – anklicken zum Ändern">'+symbol+'</td>';});
       html+='</tr>';
     });
     html+='</tbody></table></div><p class="muted" style="margin-top:8px">X = Eingeplant · K = Krank · ? = Offen · U = Urlaub · S = Berufsschule</p>';
@@ -4550,6 +4553,21 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('employeePlanList').addEventListener('click',e=>{
     const btn=e.target.closest('[data-delete-employee-plan]'); if(!btn)return;
     saveEmployeePlan(readEmployeePlan().filter(x=>x.id!==btn.dataset.deleteEmployeePlan)); renderEmployeePlan();
+  });
+  $('employeePlanList').addEventListener('click',e=>{
+    const cell=e.target.closest('td[data-employee-cell]');
+    if(!cell||cell.querySelector('select'))return;
+    const name=cell.dataset.employeeName,date=cell.dataset.employeeDate;
+    const current=readEmployeePlan().find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE'));
+    const select=document.createElement('select');select.className='employee-cell-select';select.setAttribute('aria-label','Planung für '+name);
+    select.innerHTML='<option value="">– Kein Eintrag –</option><option value="planned">X – Eingeplant</option><option value="sick">K – Krank</option><option value="open">? – Offen</option><option value="vacation">U – Urlaub</option><option value="school">S – Berufsschule</option>';
+    select.value=current?.status||'';cell.textContent='';cell.appendChild(select);select.focus();
+    select.addEventListener('change',()=>{
+      const rows=readEmployeePlan();const index=rows.findIndex(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE'));
+      if(!select.value){if(index>=0)rows.splice(index,1);}else if(index>=0){rows[index].status=select.value;}else{rows.push({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2)),date,name,status:select.value});}
+      saveEmployeePlan(rows);renderEmployeePlan();
+    });
+    select.addEventListener('blur',()=>{if(cell.contains(select))renderEmployeePlan();});
   });
   $('refreshBtn').onclick = refreshAll;
   $('search').oninput = renderProducts;
