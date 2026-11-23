@@ -721,6 +721,53 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
 @media(max-width:700px){.employee-plan-card{align-items:flex-start;flex-direction:column}.employee-plan-card button{width:100%}}
 
 
+
+/* Mobile-Ansicht Mitarbeiterplanung: fünf Wochentage ohne seitliches Scrollen */
+.employee-mobile{display:none}
+@media(max-width:700px){
+  #employeePlanView{width:100%;min-width:0}
+  #employeePlanView .view-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #employeePlanView .view-heading h2{font-size:1.05rem}
+  #employeePlanTabs{gap:6px!important}
+  .employee-plan-tab{font-size:12px!important;line-height:1.2;padding:10px 5px!important}
+  #employeeSchedulePanel>.panel{padding:10px}
+  #employeeSchedulePanel .row{align-items:center}
+  #employeePlanFilterDate{max-width:155px!important;font-size:14px;min-height:42px}
+  #employeeSchedulePanel .employee-status-legend{font-size:11px;padding:5px 7px}
+  .employee-desktop{display:none!important}
+  .employee-mobile{display:block;margin-top:10px}
+  .employee-mobile-week{font-weight:800;font-size:14px;padding:9px 10px;background:#eaf3fc;border-radius:10px;margin-bottom:9px;color:#17466c}
+  .employee-mobile-card{background:#fff;border:1px solid #d7e6f5;border-radius:12px;padding:9px;margin:0 0 9px;box-shadow:0 2px 7px #0078d40c}
+  .employee-mobile-apprentice{background:#888;color:#fff;font-size:12px;font-weight:800;padding:5px 9px;border-radius:7px;margin:12px 0 7px}
+  .employee-mobile-name{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0}
+  .employee-mobile-name strong{font-size:14px;overflow-wrap:anywhere}
+  .employee-mobile-name .employee-order-controls{position:static;transform:none;flex-direction:row;gap:5px;flex:0 0 auto}
+  .employee-mobile-name .employee-order-btn{width:32px;min-width:32px;height:30px;min-height:30px;font-size:13px;border-radius:7px}
+  .employee-mobile-days{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+  .employee-mobile-day{display:flex;flex-direction:column;align-items:center;min-width:0;gap:3px}
+  .employee-mobile-day>span{font-size:11px;font-weight:800;color:#526b80;text-transform:capitalize}
+  .employee-mobile-day>small{font-size:10px;color:#617068}
+  .employee-mobile-cell{width:100%;min-width:0;min-height:43px;height:43px;padding:4px 0;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#334155;font-size:18px;font-weight:800}
+  .employee-mobile-cell.planned{background:#c6efce;color:#008000;border-color:#8bd49a}
+  .employee-mobile-cell.sick{background:#ffeb9c;color:#9c6500;border-color:#e7cf62}
+  .employee-mobile-cell.open{background:#ff0000;color:#111;border-color:#e88}
+  .employee-mobile-cell.vacation{background:#0070c0;color:#fff;border-color:#005a9e}
+  .employee-mobile-cell.school{background:#7030a0;color:#fff;border-color:#57217f}
+  .employee-mobile-cell:focus{outline:2px solid #1769aa;outline-offset:1px}
+  .employee-mobile-cell .employee-cell-select{width:100%;min-width:0;padding:0;font-size:12px}
+  .employee-plan-hint{font-size:11px;line-height:1.5}
+  body.dark-mode .employee-mobile-week{background:#26384d;color:#d6eaff}
+  body.dark-mode .employee-mobile-card{background:#1f2937;border-color:#374151}
+  body.dark-mode .employee-mobile-day>span,body.dark-mode .employee-mobile-day>small{color:#b8c7d8}
+  body.dark-mode .employee-mobile-cell.empty-day{background:#27364a;color:#cbd5e1;border-color:#64748b}
+}
+@media(max-width:360px){
+  .employee-mobile-card{padding:7px}
+  .employee-mobile-days{gap:3px}
+  .employee-mobile-cell{min-height:39px;height:39px}
+  .employee-mobile-day>span{font-size:10px}
+}
+
 /* Mitarbeiterplanung: waagerechte Registerkarten */
 .employee-plan-tabs{display:flex;flex-direction:row;gap:8px;align-items:stretch;width:100%;}
 .employee-plan-tab{flex:1 1 0;min-width:0;padding:13px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#eef2f7;color:#263445;font-weight:700;cursor:pointer;white-space:normal;}
@@ -4429,14 +4476,24 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     const people=readEmployeeMaster();
     const rows=readEmployeePlan();
     const statusMap={planned:['X','planned'],sick:['K','sick'],open:['?','open'],vacation:['U','vacation'],school:['S','school']};
-    let html='<div class="employee-week-wrap"><table class="employee-week"><thead><tr><th class="week-number">KW: '+weekNo+'</th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{weekday:'long'})+'</th>').join('')+'</tr><tr><th></th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'</th>').join('')+'</tr></thead><tbody>';
+    let html='<div class="employee-week-wrap employee-desktop"><table class="employee-week"><thead><tr><th class="week-number">KW: '+weekNo+'</th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{weekday:'long'})+'</th>').join('')+'</tr><tr><th></th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'</th>').join('')+'</tr></thead><tbody>';
+    let mobile='<div class="employee-mobile"><div class="employee-mobile-week">Kalenderwoche '+weekNo+' · '+days[0].toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'–'+days[4].toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'</div>';
     people.forEach((person,index)=>{
-      if(person.apprentice&&(!index||!people[index-1].apprentice))html+='<tr class="apprentice-start"><td colspan="6" style="background:#888;height:8px;padding:0"></td></tr>';
-      html+='<tr><th class="employee-name-cell">'+escapeHtml(person.name)+'<div class="employee-order-controls"><button type="button" class="employee-order-btn" data-employee-move="up" data-employee-index="'+index+'" title="Mitarbeiter nach oben" aria-label="'+escapeHtml(person.name)+' nach oben" '+(index===0||people[index-1].apprentice!==person.apprentice?'disabled':'')+'>▲</button><button type="button" class="employee-order-btn" data-employee-move="down" data-employee-index="'+index+'" title="Mitarbeiter nach unten" aria-label="'+escapeHtml(person.name)+' nach unten" '+(index===people.length-1||people[index+1].apprentice!==person.apprentice?'disabled':'')+'>▼</button></div></th>';
-      days.forEach(d=>{const date=iso(d);const entry=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===person.name.toLocaleLowerCase('de-DE'));const st=entry&&statusMap[entry.status];const symbol=st?st[0]:'-';const cls=st?st[1]:'empty-day';const label=entry?({planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub',school:'Berufsschule'}[entry.status]):'Nicht eingetragen';html+='<td class="'+cls+' employee-editable" data-employee-cell="1" data-employee-name="'+escapeHtml(person.name)+'" data-employee-date="'+date+'" title="'+label+' – anklicken zum Ändern">'+symbol+'</td>';});
-      html+='</tr>';
+      const moveControls='<div class="employee-order-controls"><button type="button" class="employee-order-btn" data-employee-move="up" data-employee-index="'+index+'" title="Mitarbeiter nach oben" aria-label="'+escapeHtml(person.name)+' nach oben" '+(index===0||people[index-1].apprentice!==person.apprentice?'disabled':'')+'>▲</button><button type="button" class="employee-order-btn" data-employee-move="down" data-employee-index="'+index+'" title="Mitarbeiter nach unten" aria-label="'+escapeHtml(person.name)+' nach unten" '+(index===people.length-1||people[index+1].apprentice!==person.apprentice?'disabled':'')+'>▼</button></div>';
+      if(person.apprentice&&(!index||!people[index-1].apprentice)){
+        html+='<tr class="apprentice-start"><td colspan="6" style="background:#888;height:8px;padding:0"></td></tr>';
+        mobile+='<div class="employee-mobile-apprentice">Lehrlinge</div>';
+      }
+      html+='<tr><th class="employee-name-cell">'+escapeHtml(person.name)+moveControls+'</th>';
+      mobile+='<article class="employee-mobile-card"><div class="employee-mobile-name"><strong>'+escapeHtml(person.name)+(person.apprentice?' · Lehrling':'')+'</strong>'+moveControls+'</div><div class="employee-mobile-days">';
+      days.forEach(d=>{
+        const date=iso(d);const entry=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===person.name.toLocaleLowerCase('de-DE'));const st=entry&&statusMap[entry.status];const symbol=st?st[0]:'-';const cls=st?st[1]:'empty-day';const label=entry?({planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub',school:'Berufsschule'}[entry.status]):'Nicht eingetragen';
+        html+='<td class="'+cls+' employee-editable" data-employee-cell="1" data-employee-name="'+escapeHtml(person.name)+'" data-employee-date="'+date+'" title="'+label+' – anklicken zum Ändern">'+symbol+'</td>';
+        mobile+='<div class="employee-mobile-day"><span>'+d.toLocaleDateString('de-DE',{weekday:'short'})+'</span><small>'+d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'</small><div role="button" tabindex="0" class="employee-mobile-cell '+cls+'" data-employee-cell="1" data-employee-name="'+escapeHtml(person.name)+'" data-employee-date="'+date+'" title="'+label+' – antippen zum Ändern">'+symbol+'</div></div>';
+      });
+      html+='</tr>';mobile+='</div></article>';
     });
-    html+='</tbody></table></div><p class="muted" style="margin-top:8px">X = Eingeplant · K = Krank · ? = Offen · U = Urlaub · S = Berufsschule</p>';
+    html+='</tbody></table></div>'+mobile+'</div><p class="muted employee-plan-hint" style="margin-top:8px">X = Eingeplant · K = Krank · ? = Offen · U = Urlaub · S = Berufsschule</p>';
     if(!people.length)html='<p class="muted">Lege zuerst Mitarbeiter an, damit sie hier angezeigt werden.</p>';
     target.innerHTML=html;
   }
@@ -4620,7 +4677,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     saveEmployeeMaster(people);renderEmployeePlan();
   });
   $('employeePlanList').addEventListener('click',e=>{
-    const cell=e.target.closest('td[data-employee-cell]');
+    const cell=e.target.closest('[data-employee-cell]');
     if(!cell||cell.querySelector('select'))return;
     const name=cell.dataset.employeeName,date=cell.dataset.employeeDate;
     const current=readEmployeePlan().find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE'));
