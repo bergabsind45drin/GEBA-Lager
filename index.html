@@ -730,7 +730,7 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
     <button id="editorModeBtn" class="secondary smallbtn">✎ Editor-Modus</button>
     <button id="darkModeBtn" class="secondary smallbtn" type="button" aria-pressed="false">🌙 Dark Mode</button>
     <button id="employeePlanBtn" class="secondary smallbtn" type="button">👥 Mitarbeiterplanung</button>
-    <button id="logoutBtn class="secondary smallbtn">Abmelden</button>
+    <button id="logoutBtn" class="secondary smallbtn">Abmelden</button>
   </div>
 </header>
 
@@ -4728,9 +4728,11 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     button.textContent = enabled ? '☀️ Light Mode' : '🌙 Dark Mode';
     button.setAttribute('aria-pressed', String(enabled));
   };
+  // Nach dem Einbau der Mitarbeiterplanung standardmäßig im hellen Design starten,
+  // damit eine zuvor gespeicherte Dark-Mode-Einstellung nicht die ganze App dunkel zeigt.
   let enabled = false;
-  try { enabled = localStorage.getItem('geba-dark-mode') === '1'; } catch (e) {}
-  apply(enabled);
+  try { localStorage.setItem('geba-dark-mode', '0'); } catch (e) {}
+  apply(false);
   button.addEventListener('click', () => {
     enabled = !document.body.classList.contains('dark-mode');
     apply(enabled);
