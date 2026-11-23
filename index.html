@@ -722,6 +722,17 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
 
 
 
+
+.employee-week-nav{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:nowrap}
+.employee-week-nav strong{white-space:nowrap;font-size:14px;min-width:92px;text-align:center}
+.employee-week-nav button{min-width:34px;min-height:34px;padding:5px 9px}
+@media(max-width:700px){
+  .employee-week-nav-row{flex-wrap:wrap}
+  .employee-week-nav{gap:5px}
+  .employee-week-nav strong{font-size:13px;min-width:88px}
+  .employee-week-nav button{min-width:36px;min-height:38px;padding:5px 8px}
+}
+
 /* Mobile-Ansicht Mitarbeiterplanung: fünf Wochentage ohne seitliches Scrollen */
 .employee-mobile{display:none}
 @media(max-width:700px){
@@ -870,7 +881,7 @@ body.dark-mode .employee-week th,body.dark-mode .employee-week td{border-color:#
           </form>
         </section>
         <section class="panel">
-          <div class="row" style="justify-content:space-between"><h3 style="margin:0">Übersicht</h3><input id="employeePlanFilterDate" type="date" aria-label="Planung nach Datum filtern" style="max-width:190px"></div>
+          <div class="row employee-week-nav-row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">Übersicht</h3><div class="employee-week-nav" aria-label="Kalenderwoche auswählen"><button type="button" id="employeeWeekPrev" class="secondary smallbtn" aria-label="Vorherige Kalenderwoche" title="Vorherige Kalenderwoche">‹</button><strong id="employeeWeekLabel" aria-live="polite">Kalenderwoche</strong><button type="button" id="employeeWeekNext" class="secondary smallbtn" aria-label="Nächste Kalenderwoche" title="Nächste Kalenderwoche">›</button><button type="button" id="employeeWeekCurrent" class="smallbtn" title="Zur aktuellen Kalenderwoche">Heute</button></div><input id="employeePlanFilterDate" type="hidden" aria-label="Ausgewählte Kalenderwoche"></div>
           <div class="row" style="gap:8px;margin:12px 0;flex-wrap:wrap"><span class="employee-status-legend planned">Grün: Eingeplant</span><span class="employee-status-legend sick">Gelb: Krank</span><span class="employee-status-legend open">Rot: Offen</span><span class="employee-status-legend vacation">Blau: Urlaub</span><span class="employee-status-legend school">Lila: Schule</span></div>
           <div id="employeePlanList"></div>
         </section>
@@ -4473,6 +4484,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     const thursday=new Date(monday);thursday.setDate(monday.getDate()+3);
     const firstThursday=new Date(thursday.getFullYear(),0,4);firstThursday.setDate(firstThursday.getDate()-((firstThursday.getDay()+6)%7)+3);
     const weekNo=1+Math.round((thursday-firstThursday)/(7*24*60*60*1000));
+    const weekLabel=$('employeeWeekLabel');if(weekLabel)weekLabel.textContent='KW '+String(weekNo).padStart(2,'0')+' / '+thursday.getFullYear();
     const people=readEmployeeMaster();
     const rows=readEmployeePlan();
     const statusMap={planned:['X','planned'],sick:['K','sick'],open:['?','open'],vacation:['U','vacation'],school:['S','school']};
@@ -4652,7 +4664,9 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('employeeScheduleOpenBtn').onclick=()=>showEmployeePlanSection('schedule');
   $('employeeManageForm').addEventListener('submit',e=>{e.preventDefault();const name=$('employeeNewName').value.trim();if(!name)return;const names=readEmployeeMaster();if(names.some(n=>n.name.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE')))return notify('Dieser Mitarbeiter ist bereits angelegt.',true);names.push({name,apprentice:$('employeeNewApprentice').checked});saveEmployeeMaster(names);$('employeeNewName').value='';$('employeeNewApprentice').checked=false;renderEmployeeMaster();notify('Mitarbeiter angelegt.');});
   $('employeeMasterList').addEventListener('click',e=>{const b=e.target.closest('[data-delete-employee-master]');if(!b)return;const names=readEmployeeMaster().sort((a,b)=>a.name.localeCompare(b.name,'de'));names.splice(Number(b.dataset.deleteEmployeeMaster),1);saveEmployeeMaster(names);renderEmployeeMaster();});
-  $('employeePlanFilterDate').addEventListener('change',renderEmployeePlan);
+  $('employeeWeekPrev').addEventListener('click',()=>{const field=$('employeePlanFilterDate');const d=new Date((field.value||new Date().toISOString().slice(0,10))+'T12:00:00');d.setDate(d.getDate()-7);field.value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);renderEmployeePlan();});
+  $('employeeWeekNext').addEventListener('click',()=>{const field=$('employeePlanFilterDate');const d=new Date((field.value||new Date().toISOString().slice(0,10))+'T12:00:00');d.setDate(d.getDate()+7);field.value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);renderEmployeePlan();});
+  $('employeeWeekCurrent').addEventListener('click',()=>{const d=new Date();$('employeePlanFilterDate').value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);renderEmployeePlan();});
   $('employeePlanForm').addEventListener('submit',e=>{
     e.preventDefault();
     const date=$('employeePlanDate').value, name=$('employeePlanName').value.trim(), status=$('employeePlanStatus').value;
