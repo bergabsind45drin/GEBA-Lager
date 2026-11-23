@@ -694,6 +694,9 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
 
 
 /* Warenkorb-Artikelsuche: Live-Trefferliste mit eigenem Scrollbereich */
+.stock-cart-manual-search{position:relative;flex:1;min-width:0}
+.stock-cart-manual-search>input{width:100%}
+.stock-cart-manual-search .stock-cart-search-results{position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;z-index:100}
 .stock-cart-search-results{position:relative;z-index:30;max-height:280px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border:1px solid #c8dced;border-radius:10px;background:#fff;box-shadow:0 5px 16px #102a4330;margin-top:5px}
 .stock-cart-search-results.hidden{display:none!important}
 .stock-cart-search-results button{display:block;width:100%;min-height:0;padding:11px 12px;margin:0;border-radius:0;border-bottom:1px solid #e5edf5;background:#fff;color:#17211d;text-align:left;font-weight:500}
@@ -924,7 +927,7 @@ body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
           <div class="field"><label for="stockCartQuantity">Menge</label><input id="stockCartQuantity" type="number" min="0.01" step="0.01" value="1"></div>
           <div class="field wide"><label for="stockCartNotes">Gemeinsame Notiz (optional)</label><input id="stockCartNotes" placeholder="z. B. Badezimmer Sanierung"></div>
           <div class="wide row" style="flex-wrap:wrap"><button type="button" id="addStockCartItemBtn">＋ Artikel hinzufügen</button><button type="button" id="scanStockCartBtn" class="secondary">▦ Artikel scannen</button></div>
-          <div class="wide"><label for="stockCartBarcode">Barcode / Artikelnummer manuell</label><div class="row"><input id="stockCartBarcode" placeholder="Barcode oder Artikelnummer eingeben"><button type="button" id="findStockCartBarcodeBtn" class="secondary">Suchen & hinzufügen</button></div></div>
+          <div class="wide"><label for="stockCartBarcode">Barcode / Artikelnummer manuell</label><div class="row" style="align-items:flex-start"><div class="stock-cart-manual-search"><input id="stockCartBarcode" autocomplete="off" placeholder="Barcode oder Artikelnummer eingeben"><div id="stockCartBarcodeResults" class="stock-cart-search-results hidden" role="listbox" aria-label="Passende Artikel anhand Barcode oder Artikelnummer"></div></div><button type="button" id="findStockCartBarcodeBtn" class="secondary">Suchen & hinzufügen</button></div></div>
         </div>
         <h3>Artikel im Warenkorb</h3>
         <div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Bestand</th><th>Menge</th><th>Aktion</th></tr></thead><tbody id="stockCartBody"></tbody></table></div>
@@ -2119,6 +2122,22 @@ body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
     results.classList.remove('hidden');
   }
 
+  function renderStockCartBarcodeSearch() {
+    const input = $('stockCartBarcode');
+    const results = $('stockCartBarcodeResults');
+    if (!input || !results) return;
+    const term = input.value.trim();
+    if (!term) { results.innerHTML = ''; results.classList.add('hidden'); return; }
+    const matches = products.filter(p => productMatchesSearch(p, term, ['name', 'sku', 'barcode'])).slice(0, 100);
+    results.innerHTML = matches.length ? matches.map(p => `
+      <button type="button" role="option" data-stock-cart-barcode-pick="${escapeHtml(p.id)}">
+        <strong>${escapeHtml(p.name)}</strong>
+        <span class="stock-search-meta">Art.-Nr.: ${escapeHtml(p.sku || '–')} · Barcode: ${escapeHtml(p.barcode || '–')} · Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')}</span>
+      </button>`).join('') + (matches.length === 100 ? '<div class="muted" style="padding:10px">Weitere Treffer: Suche bitte genauer.</div>' : '')
+      : '<div class="muted" style="padding:12px">Keine passenden Artikel gefunden.</div>';
+    results.classList.remove('hidden');
+  }
+
   function showStockCartMessage(message, error = false) {
     const el = $('stockCartMsg');
     el.textContent = message;
@@ -2144,6 +2163,7 @@ body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
     else stockCart.push({ productId: product.id, quantity });
     $('stockCartQuantity').value = '1';
     $('stockCartBarcode').value = '';
+    $('stockCartBarcodeResults')?.classList.add('hidden');
     renderStockCart();
     showStockCartMessage(`${product.name} wurde zum Warenkorb hinzugefügt.`);
   }
@@ -4418,8 +4438,21 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     renderStockCartOptions();
   };
   $('scanStockCartBtn').onclick = scanStockCartItem;
+  $('stockCartBarcode').addEventListener('input', renderStockCartBarcodeSearch);
+  $('stockCartBarcodeResults').addEventListener('click', e => {
+    const option = e.target.closest('[data-stock-cart-barcode-pick]');
+    if (!option) return;
+    const product = products.find(p => String(p.id) === option.dataset.stockCartBarcodePick);
+    if (!product) return;
+    $('stockCartBarcode').value = product.barcode || product.sku || product.name;
+    $('stockCartBarcodeResults').classList.add('hidden');
+    addStockProductToCart(product);
+  });
+  $('stockCartBarcode').addEventListener('keydown', e => {
+    if (e.key === 'Escape') $('stockCartBarcodeResults').classList.add('hidden');
+    if (e.key === 'Enter') { e.preventDefault(); const first = $('stockCartBarcodeResults').querySelector('[data-stock-cart-barcode-pick]'); if (first && !$('stockCartBarcodeResults').classList.contains('hidden')) first.click(); else addStockProductToCart(findStockProductByCode($('stockCartBarcode').value)); }
+  });
   $('findStockCartBarcodeBtn').onclick = () => addStockProductToCart(findStockProductByCode($('stockCartBarcode').value));
-  $('stockCartBarcode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addStockProductToCart(findStockProductByCode($('stockCartBarcode').value)); } });
   $('checkoutStockCartBtn').onclick = checkoutStockCart;
   $('clearStockCartBtn').onclick = () => { stockCart = []; renderStockCart(); showStockCartMessage('Warenkorb geleert.'); };
   $('exportBtn').onclick = exportCsv;
