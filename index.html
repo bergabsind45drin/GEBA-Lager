@@ -4760,11 +4760,11 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     button.textContent = enabled ? '☀️ Light Mode' : '🌙 Dark Mode';
     button.setAttribute('aria-pressed', String(enabled));
   };
-  // Nach dem Einbau der Mitarbeiterplanung standardmäßig im hellen Design starten,
-  // damit eine zuvor gespeicherte Dark-Mode-Einstellung nicht die ganze App dunkel zeigt.
+  // Letzte Design-Auswahl aus diesem Browser wiederherstellen.
+  // Nur wenn noch keine Auswahl gespeichert wurde, hell starten.
   let enabled = false;
-  try { localStorage.setItem('geba-dark-mode', '0'); } catch (e) {}
-  apply(false);
+  try { enabled = localStorage.getItem('geba-dark-mode') === '1'; } catch (e) {}
+  apply(enabled);
   button.addEventListener('click', () => {
     enabled = !document.body.classList.contains('dark-mode');
     apply(enabled);
