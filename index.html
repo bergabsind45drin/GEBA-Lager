@@ -802,8 +802,8 @@ body.dark-mode .employee-week th,body.dark-mode .employee-week td{border-color:#
     <section id="employeePlanView" class="hidden">
       <div class="row view-heading"><button id="employeePlanHomeBtn" class="secondary smallbtn" type="button">← Übersicht</button><h2>👥 Mitarbeiterplanung</h2></div>
       <nav id="employeePlanTabs" class="employee-plan-tabs" role="tablist" aria-label="Mitarbeiterplanung" style="display:flex;flex-direction:row;gap:8px;margin-top:16px">
-        <button id="employeeManageOpenBtn" class="employee-plan-tab active" type="button" role="tab" aria-selected="true">👤 Mitarbeiter anlegen</button>
-        <button id="employeeScheduleOpenBtn" class="employee-plan-tab" type="button" role="tab" aria-selected="false">📅 Planung</button>
+        <button id="employeeManageOpenBtn" class="employee-plan-tab" type="button" role="tab" aria-selected="false">👤 Mitarbeiter anlegen</button>
+        <button id="employeeScheduleOpenBtn" class="employee-plan-tab active" type="button" role="tab" aria-selected="true">📅 Planung</button>
       </nav>
       <section id="employeeManagePanel" class="panel" style="margin-top:12px">
         <div class="row"><h3>Mitarbeiter anlegen</h3></div>
@@ -4364,7 +4364,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     $('employeeMasterList').innerHTML=people.length?people.map((person,i)=>'<div class="employee-plan-card"><strong>'+escapeHtml(person.name)+(person.apprentice?' · Lehrling':'')+'</strong><button type="button" class="danger smallbtn" data-delete-employee-master="'+i+'">Entfernen</button></div>').join(''):'<p class="muted">Noch keine Mitarbeiter angelegt.</p>';
     $('employeePlanName').innerHTML='<option value="">Mitarbeiter auswählen…</option>'+people.map(p=>'<option value="'+escapeHtml(p.name)+'">'+escapeHtml(p.name)+(p.apprentice?' (Lehrling)':'')+'</option>').join('');
   }
-  function showEmployeePlanSection(section){if(section==='menu')section='manage';$('employeeManagePanel').classList.toggle('hidden',section!=='manage');$('employeeSchedulePanel').classList.toggle('hidden',section!=='schedule');const manage=$('employeeManageOpenBtn'),schedule=$('employeeScheduleOpenBtn');manage.classList.toggle('active',section==='manage');schedule.classList.toggle('active',section==='schedule');manage.setAttribute('aria-selected',section==='manage'?'true':'false');schedule.setAttribute('aria-selected',section==='schedule'?'true':'false');if(section==='manage')renderEmployeeMaster();if(section==='schedule'){renderEmployeeMaster();renderEmployeePlan();}}
+  function showEmployeePlanSection(section){if(section==='menu')section='schedule';$('employeeManagePanel').classList.toggle('hidden',section!=='manage');$('employeeSchedulePanel').classList.toggle('hidden',section!=='schedule');const manage=$('employeeManageOpenBtn'),schedule=$('employeeScheduleOpenBtn');manage.classList.toggle('active',section==='manage');schedule.classList.toggle('active',section==='schedule');manage.setAttribute('aria-selected',section==='manage'?'true':'false');schedule.setAttribute('aria-selected',section==='schedule'?'true':'false');if(section==='manage')renderEmployeeMaster();if(section==='schedule'){renderEmployeeMaster();renderEmployeePlan();}}
   function renderEmployeePlan(){
     const target=$('employeePlanList'); if(!target)return;
     const selected=$('employeePlanFilterDate')?.value||new Date().toISOString().slice(0,10);
@@ -4397,7 +4397,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
       employeePlanUnlocked=true;
     }
     showMainView('employeePlan');
-    showEmployeePlanSection('menu');
+    showEmployeePlanSection('schedule');
     const today=new Date(); const localDate=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
     if(!$('employeePlanDate').value)$('employeePlanDate').value=localDate;
     if(!$('employeePlanFilterDate').value)$('employeePlanFilterDate').value=localDate;
