@@ -707,6 +707,18 @@ body.dark-mode .stock-cart-search-results{background:#1f2937;border-color:#4b556
 body.dark-mode .stock-cart-search-results button{background:#1f2937;color:#e5e7eb;border-color:#374151}
 body.dark-mode .stock-cart-search-results button:hover,body.dark-mode .stock-cart-search-results button:focus{background:#334155}
 body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
+
+.employee-status-legend{display:inline-block;padding:6px 10px;border-radius:8px;font-size:.82rem;font-weight:750}
+.employee-status-legend.planned,.employee-plan-card.planned{background:#d9f7df;color:#176b2c;border:1px solid #8bd49a}
+.employee-status-legend.sick,.employee-plan-card.sick{background:#fff2b8;color:#765600;border:1px solid #e7cf62}
+.employee-status-legend.open,.employee-plan-card.open{background:#ffe0e0;color:#a21d1d;border:1px solid #f0a3a3}
+.employee-status-legend.vacation,.employee-plan-card.vacation{background:#dceeff;color:#075b9b;border:1px solid #91c7f2}
+.employee-plan-card{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;margin-top:9px;border-radius:12px;font-weight:700}
+.employee-plan-card .employee-plan-meta{font-size:.82rem;font-weight:500;opacity:.85}
+.employee-plan-card button{flex:0 0 auto}
+body.dark-mode .employee-plan-card{filter:brightness(.82)}
+@media(max-width:700px){.employee-plan-card{align-items:flex-start;flex-direction:column}.employee-plan-card button{width:100%}}
+
 </style>
 </head>
 <body>
@@ -717,7 +729,8 @@ body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
     <button id="qrToolsBtn" class="secondary smallbtn">QR-Codes</button>
     <button id="editorModeBtn" class="secondary smallbtn">✎ Editor-Modus</button>
     <button id="darkModeBtn" class="secondary smallbtn" type="button" aria-pressed="false">🌙 Dark Mode</button>
-    <button id="logoutBtn" class="secondary smallbtn">Abmelden</button>
+    <button id="employeePlanBtn" class="secondary smallbtn" type="button">👥 Mitarbeiterplanung</button>
+    <button id="logoutBtn class="secondary smallbtn">Abmelden</button>
   </div>
 </header>
 
@@ -752,6 +765,24 @@ body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
 
   <section id="appScreen" class="hidden">
     <div id="notice" class="msg hidden"></div>
+
+    <section id="employeePlanView" class="hidden">
+      <div class="row view-heading"><button id="employeePlanHomeBtn" class="secondary smallbtn" type="button">← Übersicht</button><h2>👥 Mitarbeiterplanung</h2></div>
+      <section class="panel" style="margin-top:16px">
+        <p class="muted">Plane Mitarbeiter für einen Tag ein und kennzeichne den jeweiligen Status.</p>
+        <form id="employeePlanForm" class="tool-form">
+          <div class="field"><label for="employeePlanDate">Datum</label><input id="employeePlanDate" type="date" required></div>
+          <div class="field"><label for="employeePlanName">Mitarbeiter</label><input id="employeePlanName" required placeholder="Name des Mitarbeiters"></div>
+          <div class="field"><label for="employeePlanStatus">Status</label><select id="employeePlanStatus"><option value="planned">Eingeplant</option><option value="sick">Krank</option><option value="open">Noch offen</option><option value="vacation">Urlaub</option></select></div>
+          <div class="field" style="justify-content:end"><button type="submit">Eintrag speichern</button></div>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="row" style="justify-content:space-between"><h3 style="margin:0">Übersicht</h3><input id="employeePlanFilterDate" type="date" aria-label="Planung nach Datum filtern" style="max-width:190px"></div>
+        <div class="row" style="gap:8px;margin:12px 0;flex-wrap:wrap"><span class="employee-status-legend planned">Grün: Eingeplant</span><span class="employee-status-legend sick">Gelb: Krank</span><span class="employee-status-legend open">Rot: Offen</span><span class="employee-status-legend vacation">Blau: Urlaub</span></div>
+        <div id="employeePlanList"></div>
+      </section>
+    </section>
 
     <section id="homeView" class="panel">
       <h2>Was möchtest du öffnen?</h2>
@@ -4266,11 +4297,41 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     notify('Tabellenblatt '+next+' wurde angelegt. „Erledigt am“ ist für alle Kunden leer.');
   }
 
+  const EMPLOYEE_PLAN_PASSWORD = '241005';
+  const EMPLOYEE_PLAN_STORAGE_KEY = 'geba-employee-planning-v1';
+  let employeePlanUnlocked = false;
+  function readEmployeePlan(){
+    try { const rows=JSON.parse(localStorage.getItem(EMPLOYEE_PLAN_STORAGE_KEY)||'[]'); return Array.isArray(rows)?rows:[]; }
+    catch(e){ return []; }
+  }
+  function saveEmployeePlan(rows){ localStorage.setItem(EMPLOYEE_PLAN_STORAGE_KEY,JSON.stringify(rows)); }
+  function renderEmployeePlan(){
+    const target=$('employeePlanList'); if(!target)return;
+    const filter=$('employeePlanFilterDate')?.value||'';
+    const rows=readEmployeePlan().filter(x=>!filter||x.date===filter).sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name,'de'));
+    const labels={planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub'};
+    if(!rows.length){target.innerHTML='<p class="muted">Für diesen Zeitraum sind noch keine Mitarbeiter eingetragen.</p>';return;}
+    target.innerHTML=rows.map(x=>'<div class="employee-plan-card '+escapeHtml(x.status)+'"><div><div>'+escapeHtml(x.name)+'</div><div class="employee-plan-meta">'+escapeHtml(new Date(x.date+'T12:00:00').toLocaleDateString('de-DE'))+' · '+labels[x.status]+'</div></div><button type="button" class="danger smallbtn" data-delete-employee-plan="'+escapeHtml(x.id)+'">Entfernen</button></div>').join('');
+  }
+  function openEmployeePlan(){
+    if(!employeePlanUnlocked){
+      const entered=window.prompt('Passwort für die Mitarbeiterplanung:');
+      if(entered!==EMPLOYEE_PLAN_PASSWORD){ if(entered!==null)notify('Passwort ist nicht korrekt.',true); return; }
+      employeePlanUnlocked=true;
+    }
+    showMainView('employeePlan');
+    const today=new Date(); const localDate=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    if(!$('employeePlanDate').value)$('employeePlanDate').value=localDate;
+    if(!$('employeePlanFilterDate').value)$('employeePlanFilterDate').value=localDate;
+    renderEmployeePlan();
+  }
+
   function showMainView(view) {
     if (currentRole === 'monteur' && view !== 'fleet') view = 'fleet';
     activeView = view || 'home';
-    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('warehouseInventoryView'); hide('maintenanceView');
-    if (view === 'warehouseInventory') show('warehouseInventoryView');
+    hide('homeView'); hide('inventoryView'); hide('toolView'); hide('vehiclesView'); hide('fleetInventoryView'); hide('warehouseInventoryView'); hide('maintenanceView'); hide('employeePlanView');
+    if (view === 'employeePlan') { show('employeePlanView'); renderEmployeePlan(); }
+    else if (view === 'warehouseInventory') show('warehouseInventoryView');
     else if (view === 'maintenance') show('maintenanceView');
     else if (view === 'inventory') show('inventoryView');
     else if (view === 'tools') show('toolView');
@@ -4399,6 +4460,22 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   });
 
   $('logoutBtn').onclick = () => { currentRole = 'office'; editorMode = false; client.auth.signOut(); };
+  $('employeePlanBtn').onclick = openEmployeePlan;
+  $('employeePlanHomeBtn').onclick = () => showMainView('home');
+  $('employeePlanFilterDate').addEventListener('change',renderEmployeePlan);
+  $('employeePlanForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const date=$('employeePlanDate').value, name=$('employeePlanName').value.trim(), status=$('employeePlanStatus').value;
+    if(!date||!name)return;
+    const rows=readEmployeePlan();
+    const existing=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE'));
+    if(existing){existing.status=status;}else{rows.push({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2)),date,name,status});}
+    saveEmployeePlan(rows); $('employeePlanName').value=''; renderEmployeePlan(); notify('Mitarbeiterplanung gespeichert.');
+  });
+  $('employeePlanList').addEventListener('click',e=>{
+    const btn=e.target.closest('[data-delete-employee-plan]'); if(!btn)return;
+    saveEmployeePlan(readEmployeePlan().filter(x=>x.id!==btn.dataset.deleteEmployeePlan)); renderEmployeePlan();
+  });
   $('refreshBtn').onclick = refreshAll;
   $('search').oninput = renderProducts;
 
