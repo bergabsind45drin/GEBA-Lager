@@ -725,6 +725,26 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
 .employee-plan-tab{flex:1 1 0;min-width:0;padding:13px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#eef2f7;color:#263445;font-weight:700;cursor:pointer;white-space:normal;}
 .employee-plan-tab.active{background:#1769aa;color:#fff;border-color:#1769aa;}
 @media(max-width:480px){.employee-plan-tab{font-size:13px;padding:11px 6px;}}
+/* Wochenübersicht im Stil der gewünschten Mitarbeiter-Tabelle */
+.employee-week-wrap{overflow-x:auto;margin-top:12px}
+.employee-week{width:100%;border-collapse:collapse;min-width:570px;table-layout:fixed;font-weight:700;text-align:center}
+.employee-week th,.employee-week td{border:1px solid #333;padding:7px 5px}
+.employee-week thead th{background:#f1f3f5;color:#111}
+.employee-week .employee-name-cell{width:112px;text-align:left;background:#fff;color:#111}
+.employee-week .week-number{background:#fff;text-align:left}
+.employee-week td{height:38px;font-size:18px}
+.employee-week td.planned{background:#c6efce;color:#008000}
+.employee-week td.sick{background:#ffeb9c;color:#9c6500}
+.employee-week td.open{background:#ff0000;color:#111}
+.employee-week td.vacation{background:#0070c0;color:#fff}
+.employee-week td.school{background:#7030a0;color:#fff}
+.employee-week tr.apprentice-start td{border-top:8px solid #888}
+.employee-week .empty-day{background:#fff;color:#777}
+body.dark-mode .employee-week thead th,body.dark-mode .employee-week .employee-name-cell,body.dark-mode .employee-week .week-number{background:#252b33;color:#f3f4f6}
+body.dark-mode .employee-week th,body.dark-mode .employee-week td{border-color:#777}
+.employee-apprentice-flag{display:flex;align-items:center;gap:8px;padding:8px 0}
+.employee-apprentice-flag input{width:auto}
+
 </style>
 </head>
 <body>
@@ -780,17 +800,17 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
       </nav>
       <section id="employeeManagePanel" class="panel" style="margin-top:12px">
         <div class="row"><h3>Mitarbeiter anlegen</h3></div>
-        <form id="employeeManageForm" class="tool-form"><div class="field"><label for="employeeNewName">Name des Mitarbeiters</label><input id="employeeNewName" required placeholder="Vor- und Nachname"></div><div class="field" style="justify-content:end"><button type="submit">Mitarbeiter speichern</button></div></form>
+        <form id="employeeManageForm" class="tool-form"><div class="field"><label for="employeeNewName">Name des Mitarbeiters</label><input id="employeeNewName" required placeholder="Vor- und Nachname"></div><label class="employee-apprentice-flag"><input id="employeeNewApprentice" type="checkbox"> Lehrling</label><div class="field" style="justify-content:end"><button type="submit">Mitarbeiter speichern</button></div></form>
         <div id="employeeMasterList"></div>
       </section>
       <section id="employeeSchedulePanel" class="hidden" style="margin-top:12px">
         <div class="row"><h3>Planung</h3></div>
         <section class="panel">
-          <p class="muted">Plane Mitarbeiter für einen Tag ein und kennzeichne den jeweiligen Status.</p>
+          <p class="muted">Plane Mitarbeiter für einzelne Tage. Die Übersicht zeigt automatisch Montag bis Freitag mit Kalenderwoche.</p>
           <form id="employeePlanForm" class="tool-form">
             <div class="field"><label for="employeePlanDate">Datum</label><input id="employeePlanDate" type="date" required></div>
             <div class="field"><label for="employeePlanName">Mitarbeiter</label><select id="employeePlanName" required><option value="">Mitarbeiter auswählen…</option></select></div>
-            <div class="field"><label for="employeePlanStatus">Status</label><select id="employeePlanStatus"><option value="planned">Eingeplant</option><option value="sick">Krank</option><option value="open">Noch offen</option><option value="vacation">Urlaub</option></select></div>
+            <div class="field"><label for="employeePlanStatus">Status</label><select id="employeePlanStatus"><option value="planned">Eingeplant</option><option value="sick">Krank</option><option value="open">Noch offen</option><option value="vacation">Urlaub</option><option value="school">Berufsschule</option></select></div>
             <div class="field" style="justify-content:end"><button type="submit">Eintrag speichern</button></div>
           </form>
         </section>
@@ -4324,21 +4344,44 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     catch(e){ return []; }
   }
   function saveEmployeePlan(rows){ localStorage.setItem(EMPLOYEE_PLAN_STORAGE_KEY,JSON.stringify(rows)); }
-  function readEmployeeMaster(){ try{const a=JSON.parse(localStorage.getItem(EMPLOYEE_MASTER_STORAGE_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];} }
+  function readEmployeeMaster(){
+    try{
+      const a=JSON.parse(localStorage.getItem(EMPLOYEE_MASTER_STORAGE_KEY)||'[]');
+      if(!Array.isArray(a))return [];
+      return a.map(x=>typeof x==='string'?{name:x,apprentice:false}:{name:String(x.name||''),apprentice:!!x.apprentice}).filter(x=>x.name);
+    }catch(e){return [];}
+  }
   function saveEmployeeMaster(rows){localStorage.setItem(EMPLOYEE_MASTER_STORAGE_KEY,JSON.stringify(rows));}
   function renderEmployeeMaster(){
-    const names=readEmployeeMaster().sort((a,b)=>a.localeCompare(b,'de'));
-    $('employeeMasterList').innerHTML=names.length?names.map((n,i)=>'<div class="employee-plan-card"><strong>'+escapeHtml(n)+'</strong><button type="button" class="danger smallbtn" data-delete-employee-master="'+i+'">Entfernen</button></div>').join(''):'<p class="muted">Noch keine Mitarbeiter angelegt.</p>' ;
-    $('employeePlanName').innerHTML='<option value="">Mitarbeiter auswählen…</option>'+names.map(n=>'<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>').join('');
+    const people=readEmployeeMaster().sort((a,b)=>a.name.localeCompare(b.name,'de'));
+    $('employeeMasterList').innerHTML=people.length?people.map((person,i)=>'<div class="employee-plan-card"><strong>'+escapeHtml(person.name)+(person.apprentice?' · Lehrling':'')+'</strong><button type="button" class="danger smallbtn" data-delete-employee-master="'+i+'">Entfernen</button></div>').join(''):'<p class="muted">Noch keine Mitarbeiter angelegt.</p>';
+    $('employeePlanName').innerHTML='<option value="">Mitarbeiter auswählen…</option>'+people.map(p=>'<option value="'+escapeHtml(p.name)+'">'+escapeHtml(p.name)+(p.apprentice?' (Lehrling)':'')+'</option>').join('');
   }
   function showEmployeePlanSection(section){if(section==='menu')section='manage';$('employeeManagePanel').classList.toggle('hidden',section!=='manage');$('employeeSchedulePanel').classList.toggle('hidden',section!=='schedule');const manage=$('employeeManageOpenBtn'),schedule=$('employeeScheduleOpenBtn');manage.classList.toggle('active',section==='manage');schedule.classList.toggle('active',section==='schedule');manage.setAttribute('aria-selected',section==='manage'?'true':'false');schedule.setAttribute('aria-selected',section==='schedule'?'true':'false');if(section==='manage')renderEmployeeMaster();if(section==='schedule'){renderEmployeeMaster();renderEmployeePlan();}}
   function renderEmployeePlan(){
     const target=$('employeePlanList'); if(!target)return;
-    const filter=$('employeePlanFilterDate')?.value||'';
-    const rows=readEmployeePlan().filter(x=>!filter||x.date===filter).sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name,'de'));
-    const labels={planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub'};
-    if(!rows.length){target.innerHTML='<p class="muted">Für diesen Zeitraum sind noch keine Mitarbeiter eingetragen.</p>';return;}
-    target.innerHTML=rows.map(x=>'<div class="employee-plan-card '+escapeHtml(x.status)+'"><div><div>'+escapeHtml(x.name)+'</div><div class="employee-plan-meta">'+escapeHtml(new Date(x.date+'T12:00:00').toLocaleDateString('de-DE'))+' · '+labels[x.status]+'</div></div><button type="button" class="danger smallbtn" data-delete-employee-plan="'+escapeHtml(x.id)+'">Entfernen</button></div>').join('');
+    const selected=$('employeePlanFilterDate')?.value||new Date().toISOString().slice(0,10);
+    const anchor=new Date(selected+'T12:00:00');
+    const monday=new Date(anchor); const day=(monday.getDay()+6)%7; monday.setDate(monday.getDate()-day);
+    const days=Array.from({length:5},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
+    const iso=d=>{const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);return local.toISOString().slice(0,10);};
+    // ISO-Kalenderwoche
+    const thursday=new Date(monday);thursday.setDate(monday.getDate()+3);
+    const firstThursday=new Date(thursday.getFullYear(),0,4);firstThursday.setDate(firstThursday.getDate()-((firstThursday.getDay()+6)%7)+3);
+    const weekNo=1+Math.round((thursday-firstThursday)/(7*24*60*60*1000));
+    const people=readEmployeeMaster().sort((a,b)=>Number(a.apprentice)-Number(b.apprentice)||a.name.localeCompare(b.name,'de'));
+    const rows=readEmployeePlan();
+    const statusMap={planned:['X','planned'],sick:['K','sick'],open:['?','open'],vacation:['U','vacation'],school:['S','school']};
+    let html='<div class="employee-week-wrap"><table class="employee-week"><thead><tr><th class="week-number">KW: '+weekNo+'</th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{weekday:'long'})+'</th>').join('')+'</tr><tr><th></th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'</th>').join('')+'</tr></thead><tbody>';
+    people.forEach((person,index)=>{
+      if(person.apprentice&&(!index||!people[index-1].apprentice))html+='<tr class="apprentice-start"><td colspan="6" style="background:#888;height:8px;padding:0"></td></tr>';
+      html+='<tr><th class="employee-name-cell">'+escapeHtml(person.name)+'</th>';
+      days.forEach(d=>{const date=iso(d);const entry=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===person.name.toLocaleLowerCase('de-DE'));const st=entry&&statusMap[entry.status];html+=st?'<td class="'+st[1]+'" title="'+({planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub',school:'Berufsschule'}[entry.status])+'">'+st[0]+'</td>':'<td class="empty-day">-</td>';});
+      html+='</tr>';
+    });
+    html+='</tbody></table></div><p class="muted" style="margin-top:8px">X = Eingeplant · K = Krank · ? = Offen · U = Urlaub · S = Berufsschule</p>';
+    if(!people.length)html='<p class="muted">Lege zuerst Mitarbeiter an, damit sie hier angezeigt werden.</p>';
+    target.innerHTML=html;
   }
   function openEmployeePlan(){
     if(!employeePlanUnlocked){
@@ -4492,8 +4535,8 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('employeePlanHomeBtn').onclick = () => showMainView('home');
   $('employeeManageOpenBtn').onclick=()=>showEmployeePlanSection('manage');
   $('employeeScheduleOpenBtn').onclick=()=>showEmployeePlanSection('schedule');
-  $('employeeManageForm').addEventListener('submit',e=>{e.preventDefault();const name=$('employeeNewName').value.trim();if(!name)return;const names=readEmployeeMaster();if(names.some(n=>n.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE')))return notify('Dieser Mitarbeiter ist bereits angelegt.',true);names.push(name);saveEmployeeMaster(names);$('employeeNewName').value='';renderEmployeeMaster();notify('Mitarbeiter angelegt.');});
-  $('employeeMasterList').addEventListener('click',e=>{const b=e.target.closest('[data-delete-employee-master]');if(!b)return;const names=readEmployeeMaster();names.splice(Number(b.dataset.deleteEmployeeMaster),1);saveEmployeeMaster(names);renderEmployeeMaster();});
+  $('employeeManageForm').addEventListener('submit',e=>{e.preventDefault();const name=$('employeeNewName').value.trim();if(!name)return;const names=readEmployeeMaster();if(names.some(n=>n.name.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE')))return notify('Dieser Mitarbeiter ist bereits angelegt.',true);names.push({name,apprentice:$('employeeNewApprentice').checked});saveEmployeeMaster(names);$('employeeNewName').value='';$('employeeNewApprentice').checked=false;renderEmployeeMaster();notify('Mitarbeiter angelegt.');});
+  $('employeeMasterList').addEventListener('click',e=>{const b=e.target.closest('[data-delete-employee-master]');if(!b)return;const names=readEmployeeMaster().sort((a,b)=>a.name.localeCompare(b.name,'de'));names.splice(Number(b.dataset.deleteEmployeeMaster),1);saveEmployeeMaster(names);renderEmployeeMaster();});
   $('employeePlanFilterDate').addEventListener('change',renderEmployeePlan);
   $('employeePlanForm').addEventListener('submit',e=>{
     e.preventDefault();
