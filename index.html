@@ -719,6 +719,12 @@ body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
 body.dark-mode .employee-plan-card{filter:brightness(.82)}
 @media(max-width:700px){.employee-plan-card{align-items:flex-start;flex-direction:column}.employee-plan-card button{width:100%}}
 
+
+/* Mitarbeiterplanung: waagerechte Registerkarten */
+.employee-plan-tabs{display:flex;flex-direction:row;gap:8px;align-items:stretch;width:100%;}
+.employee-plan-tab{flex:1 1 0;min-width:0;padding:13px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#eef2f7;color:#263445;font-weight:700;cursor:pointer;white-space:normal;}
+.employee-plan-tab.active{background:#1769aa;color:#fff;border-color:#1769aa;}
+@media(max-width:480px){.employee-plan-tab{font-size:13px;padding:11px 6px;}}
 </style>
 </head>
 <body>
@@ -768,19 +774,31 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
 
     <section id="employeePlanView" class="hidden">
       <div class="row view-heading"><button id="employeePlanHomeBtn" class="secondary smallbtn" type="button">← Übersicht</button><h2>👥 Mitarbeiterplanung</h2></div>
-      <section class="panel" style="margin-top:16px">
-        <p class="muted">Plane Mitarbeiter für einen Tag ein und kennzeichne den jeweiligen Status.</p>
-        <form id="employeePlanForm" class="tool-form">
-          <div class="field"><label for="employeePlanDate">Datum</label><input id="employeePlanDate" type="date" required></div>
-          <div class="field"><label for="employeePlanName">Mitarbeiter</label><input id="employeePlanName" required placeholder="Name des Mitarbeiters"></div>
-          <div class="field"><label for="employeePlanStatus">Status</label><select id="employeePlanStatus"><option value="planned">Eingeplant</option><option value="sick">Krank</option><option value="open">Noch offen</option><option value="vacation">Urlaub</option></select></div>
-          <div class="field" style="justify-content:end"><button type="submit">Eintrag speichern</button></div>
-        </form>
+      <nav id="employeePlanTabs" class="employee-plan-tabs" role="tablist" aria-label="Mitarbeiterplanung" style="display:flex;flex-direction:row;gap:8px;margin-top:16px">
+        <button id="employeeManageOpenBtn" class="employee-plan-tab active" type="button" role="tab" aria-selected="true">👤 Mitarbeiter anlegen</button>
+        <button id="employeeScheduleOpenBtn" class="employee-plan-tab" type="button" role="tab" aria-selected="false">📅 Planung</button>
+      </nav>
+      <section id="employeeManagePanel" class="panel" style="margin-top:12px">
+        <div class="row"><h3>Mitarbeiter anlegen</h3></div>
+        <form id="employeeManageForm" class="tool-form"><div class="field"><label for="employeeNewName">Name des Mitarbeiters</label><input id="employeeNewName" required placeholder="Vor- und Nachname"></div><div class="field" style="justify-content:end"><button type="submit">Mitarbeiter speichern</button></div></form>
+        <div id="employeeMasterList"></div>
       </section>
-      <section class="panel">
-        <div class="row" style="justify-content:space-between"><h3 style="margin:0">Übersicht</h3><input id="employeePlanFilterDate" type="date" aria-label="Planung nach Datum filtern" style="max-width:190px"></div>
-        <div class="row" style="gap:8px;margin:12px 0;flex-wrap:wrap"><span class="employee-status-legend planned">Grün: Eingeplant</span><span class="employee-status-legend sick">Gelb: Krank</span><span class="employee-status-legend open">Rot: Offen</span><span class="employee-status-legend vacation">Blau: Urlaub</span></div>
-        <div id="employeePlanList"></div>
+      <section id="employeeSchedulePanel" class="hidden" style="margin-top:12px">
+        <div class="row"><h3>Planung</h3></div>
+        <section class="panel">
+          <p class="muted">Plane Mitarbeiter für einen Tag ein und kennzeichne den jeweiligen Status.</p>
+          <form id="employeePlanForm" class="tool-form">
+            <div class="field"><label for="employeePlanDate">Datum</label><input id="employeePlanDate" type="date" required></div>
+            <div class="field"><label for="employeePlanName">Mitarbeiter</label><select id="employeePlanName" required><option value="">Mitarbeiter auswählen…</option></select></div>
+            <div class="field"><label for="employeePlanStatus">Status</label><select id="employeePlanStatus"><option value="planned">Eingeplant</option><option value="sick">Krank</option><option value="open">Noch offen</option><option value="vacation">Urlaub</option></select></div>
+            <div class="field" style="justify-content:end"><button type="submit">Eintrag speichern</button></div>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="row" style="justify-content:space-between"><h3 style="margin:0">Übersicht</h3><input id="employeePlanFilterDate" type="date" aria-label="Planung nach Datum filtern" style="max-width:190px"></div>
+          <div class="row" style="gap:8px;margin:12px 0;flex-wrap:wrap"><span class="employee-status-legend planned">Grün: Eingeplant</span><span class="employee-status-legend sick">Gelb: Krank</span><span class="employee-status-legend open">Rot: Offen</span><span class="employee-status-legend vacation">Blau: Urlaub</span></div>
+          <div id="employeePlanList"></div>
+        </section>
       </section>
     </section>
 
@@ -4299,12 +4317,21 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
 
   const EMPLOYEE_PLAN_PASSWORD = '241005';
   const EMPLOYEE_PLAN_STORAGE_KEY = 'geba-employee-planning-v1';
+  const EMPLOYEE_MASTER_STORAGE_KEY = 'geba-employee-master-v1';
   let employeePlanUnlocked = false;
   function readEmployeePlan(){
     try { const rows=JSON.parse(localStorage.getItem(EMPLOYEE_PLAN_STORAGE_KEY)||'[]'); return Array.isArray(rows)?rows:[]; }
     catch(e){ return []; }
   }
   function saveEmployeePlan(rows){ localStorage.setItem(EMPLOYEE_PLAN_STORAGE_KEY,JSON.stringify(rows)); }
+  function readEmployeeMaster(){ try{const a=JSON.parse(localStorage.getItem(EMPLOYEE_MASTER_STORAGE_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];} }
+  function saveEmployeeMaster(rows){localStorage.setItem(EMPLOYEE_MASTER_STORAGE_KEY,JSON.stringify(rows));}
+  function renderEmployeeMaster(){
+    const names=readEmployeeMaster().sort((a,b)=>a.localeCompare(b,'de'));
+    $('employeeMasterList').innerHTML=names.length?names.map((n,i)=>'<div class="employee-plan-card"><strong>'+escapeHtml(n)+'</strong><button type="button" class="danger smallbtn" data-delete-employee-master="'+i+'">Entfernen</button></div>').join(''):'<p class="muted">Noch keine Mitarbeiter angelegt.</p>' ;
+    $('employeePlanName').innerHTML='<option value="">Mitarbeiter auswählen…</option>'+names.map(n=>'<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>').join('');
+  }
+  function showEmployeePlanSection(section){if(section==='menu')section='manage';$('employeeManagePanel').classList.toggle('hidden',section!=='manage');$('employeeSchedulePanel').classList.toggle('hidden',section!=='schedule');const manage=$('employeeManageOpenBtn'),schedule=$('employeeScheduleOpenBtn');manage.classList.toggle('active',section==='manage');schedule.classList.toggle('active',section==='schedule');manage.setAttribute('aria-selected',section==='manage'?'true':'false');schedule.setAttribute('aria-selected',section==='schedule'?'true':'false');if(section==='manage')renderEmployeeMaster();if(section==='schedule'){renderEmployeeMaster();renderEmployeePlan();}}
   function renderEmployeePlan(){
     const target=$('employeePlanList'); if(!target)return;
     const filter=$('employeePlanFilterDate')?.value||'';
@@ -4320,6 +4347,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
       employeePlanUnlocked=true;
     }
     showMainView('employeePlan');
+    showEmployeePlanSection('menu');
     const today=new Date(); const localDate=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
     if(!$('employeePlanDate').value)$('employeePlanDate').value=localDate;
     if(!$('employeePlanFilterDate').value)$('employeePlanFilterDate').value=localDate;
@@ -4462,6 +4490,10 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('logoutBtn').onclick = () => { currentRole = 'office'; editorMode = false; client.auth.signOut(); };
   $('employeePlanBtn').onclick = openEmployeePlan;
   $('employeePlanHomeBtn').onclick = () => showMainView('home');
+  $('employeeManageOpenBtn').onclick=()=>showEmployeePlanSection('manage');
+  $('employeeScheduleOpenBtn').onclick=()=>showEmployeePlanSection('schedule');
+  $('employeeManageForm').addEventListener('submit',e=>{e.preventDefault();const name=$('employeeNewName').value.trim();if(!name)return;const names=readEmployeeMaster();if(names.some(n=>n.toLocaleLowerCase('de-DE')===name.toLocaleLowerCase('de-DE')))return notify('Dieser Mitarbeiter ist bereits angelegt.',true);names.push(name);saveEmployeeMaster(names);$('employeeNewName').value='';renderEmployeeMaster();notify('Mitarbeiter angelegt.');});
+  $('employeeMasterList').addEventListener('click',e=>{const b=e.target.closest('[data-delete-employee-master]');if(!b)return;const names=readEmployeeMaster();names.splice(Number(b.dataset.deleteEmployeeMaster),1);saveEmployeeMaster(names);renderEmployeeMaster();});
   $('employeePlanFilterDate').addEventListener('change',renderEmployeePlan);
   $('employeePlanForm').addEventListener('submit',e=>{
     e.preventDefault();
