@@ -692,6 +692,18 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   color: #000000 !important;
 }
 
+
+/* Warenkorb-Artikelsuche: Live-Trefferliste mit eigenem Scrollbereich */
+.stock-cart-search-results{position:relative;z-index:30;max-height:280px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border:1px solid #c8dced;border-radius:10px;background:#fff;box-shadow:0 5px 16px #102a4330;margin-top:5px}
+.stock-cart-search-results.hidden{display:none!important}
+.stock-cart-search-results button{display:block;width:100%;min-height:0;padding:11px 12px;margin:0;border-radius:0;border-bottom:1px solid #e5edf5;background:#fff;color:#17211d;text-align:left;font-weight:500}
+.stock-cart-search-results button:last-child{border-bottom:0}
+.stock-cart-search-results button:hover,.stock-cart-search-results button:focus{background:#edf6ff;outline:2px solid #0078D4;outline-offset:-2px}
+.stock-cart-search-results .stock-search-meta{display:block;color:#617068;font-size:.82rem;margin-top:3px}
+body.dark-mode .stock-cart-search-results{background:#1f2937;border-color:#4b5563}
+body.dark-mode .stock-cart-search-results button{background:#1f2937;color:#e5e7eb;border-color:#374151}
+body.dark-mode .stock-cart-search-results button:hover,body.dark-mode .stock-cart-search-results button:focus{background:#334155}
+body.dark-mode .stock-cart-search-results .stock-search-meta{color:#aab8c8}
 </style>
 </head>
 <body>
@@ -903,7 +915,12 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
         <div class="tool-form">
           <div class="field"><label for="stockCartEmployee">Handwerker / Mitarbeiter</label><input id="stockCartEmployee" placeholder="Vor- und Nachname"></div>
           <div class="field"><label for="stockCartProject">Projekt / Baustelle</label><input id="stockCartProject" placeholder="z. B. Baustelle Müller"></div>
-          <div class="field"><label for="stockCartProduct">Artikel auswählen</label><select id="stockCartProduct"></select></div>
+          <div class="field wide" style="position:relative">
+            <label for="stockCartProductSearch">Artikel suchen</label>
+            <input id="stockCartProductSearch" type="search" autocomplete="off" placeholder="Artikelnamen, Artikelnummer oder Barcode eingeben …">
+            <input id="stockCartProduct" type="hidden">
+            <div id="stockCartProductResults" class="stock-cart-search-results hidden" role="listbox" aria-label="Passende Artikel"></div>
+          </div>
           <div class="field"><label for="stockCartQuantity">Menge</label><input id="stockCartQuantity" type="number" min="0.01" step="0.01" value="1"></div>
           <div class="field wide"><label for="stockCartNotes">Gemeinsame Notiz (optional)</label><input id="stockCartNotes" placeholder="z. B. Badezimmer Sanierung"></div>
           <div class="wide row" style="flex-wrap:wrap"><button type="button" id="addStockCartItemBtn">＋ Artikel hinzufügen</button><button type="button" id="scanStockCartBtn" class="secondary">▦ Artikel scannen</button></div>
@@ -2065,9 +2082,41 @@ body.dark-mode #warehouseInventoryProgressBar{background:#475569}
   }
 
   function renderStockCartOptions(selectedId = '') {
-    const select = $('stockCartProduct');
-    if (!select) return;
-    select.innerHTML = '<option value="">Artikel auswählen…</option>' + products.map(p => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)} — Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')} (${escapeHtml(p.sku || p.barcode || 'ohne Nummer')})</option>`).join('');
+    const search = $('stockCartProductSearch');
+    const selected = $('stockCartProduct');
+    const results = $('stockCartProductResults');
+    if (!search || !selected || !results) return;
+    selected.value = selectedId || '';
+    search.value = selectedId ? (products.find(p => String(p.id) === String(selectedId))?.name || '') : '';
+    results.innerHTML = '';
+    results.classList.add('hidden');
+  }
+
+  function renderStockCartProductSearch() {
+    const search = $('stockCartProductSearch');
+    const results = $('stockCartProductResults');
+    const selected = $('stockCartProduct');
+    if (!search || !results || !selected) return;
+    const term = search.value.trim();
+    selected.value = '';
+    if (!term) {
+      results.innerHTML = '';
+      results.classList.add('hidden');
+      return;
+    }
+    const matches = products.filter(p =>
+      productMatchesSearch(p, term, ['name', 'sku', 'barcode'])
+    ).slice(0, 100);
+    if (!matches.length) {
+      results.innerHTML = '<div class="muted" style="padding:12px">Keine passenden Artikel gefunden.</div>';
+    } else {
+      results.innerHTML = matches.map(p => `
+        <button type="button" role="option" data-stock-cart-product-pick="${escapeHtml(p.id)}">
+          <strong>${escapeHtml(p.name)}</strong>
+          <span class="stock-search-meta">Art.-Nr.: ${escapeHtml(p.sku || '–')} · Barcode: ${escapeHtml(p.barcode || '–')} · Bestand: ${Number(p.quantity || 0).toLocaleString('de-DE')} ${escapeHtml(p.unit || 'Stück')}</span>
+        </button>`).join('') + (matches.length === 100 ? '<div class="muted" style="padding:10px">Weitere Treffer: Suche bitte genauer.</div>' : '');
+    }
+    results.classList.remove('hidden');
   }
 
   function showStockCartMessage(message, error = false) {
@@ -4345,7 +4394,29 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('scanBtn').onclick = scanFlow;
   $('openStockCartBtn').onclick = () => { show('stockCartPanel'); renderStockCartOptions(); renderStockCart(); $('stockCartPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   $('closeStockCartBtn').onclick = () => hide('stockCartPanel');
-  $('addStockCartItemBtn').onclick = () => addStockProductToCart(products.find(p => p.id === $('stockCartProduct').value));
+  $('stockCartProductSearch').addEventListener('input', renderStockCartProductSearch);
+  $('stockCartProductResults').addEventListener('click', e => {
+    const option = e.target.closest('[data-stock-cart-product-pick]');
+    if (!option) return;
+    const product = products.find(p => String(p.id) === option.dataset.stockCartProductPick);
+    if (!product) return;
+    $('stockCartProduct').value = product.id;
+    $('stockCartProductSearch').value = product.name;
+    $('stockCartProductResults').classList.add('hidden');
+  });
+  $('stockCartProductSearch').addEventListener('keydown', e => {
+    if (e.key === 'Escape') $('stockCartProductResults').classList.add('hidden');
+    if (e.key === 'Enter') {
+      const first = $('stockCartProductResults').querySelector('[data-stock-cart-product-pick]');
+      if (first) { e.preventDefault(); first.click(); }
+    }
+  });
+  $('addStockCartItemBtn').onclick = () => {
+    const product = products.find(p => String(p.id) === String($('stockCartProduct').value));
+    if (!product) { showStockCartMessage('Bitte zuerst einen Artikel aus der Suchliste auswählen.', true); $('stockCartProductSearch').focus(); return; }
+    addStockProductToCart(product);
+    renderStockCartOptions();
+  };
   $('scanStockCartBtn').onclick = scanStockCartItem;
   $('findStockCartBarcodeBtn').onclick = () => addStockProductToCart(findStockProductByCode($('stockCartBarcode').value));
   $('stockCartBarcode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addStockProductToCart(findStockProductByCode($('stockCartBarcode').value)); } });
