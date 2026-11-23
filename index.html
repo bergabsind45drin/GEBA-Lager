@@ -730,7 +730,11 @@ body.dark-mode .employee-plan-card{filter:brightness(.82)}
 .employee-week{width:100%;border-collapse:collapse;min-width:570px;table-layout:fixed;font-weight:700;text-align:center}
 .employee-week th,.employee-week td{border:1px solid #333;padding:7px 5px}
 .employee-week thead th{background:#f1f3f5;color:#111}
-.employee-week .employee-name-cell{width:112px;text-align:center;background:#fff;color:#111}
+.employee-week .employee-name-cell{width:150px;text-align:center;background:#fff;color:#111}
+.employee-order-controls{display:flex;justify-content:center;gap:5px;margin-top:5px}
+.employee-order-btn{border:1px solid #888;border-radius:4px;background:#f3f4f6;color:#111;padding:1px 8px;min-width:28px;min-height:25px;cursor:pointer;font-size:15px;line-height:1}
+.employee-order-btn:disabled{opacity:.3;cursor:not-allowed}
+body.dark-mode .employee-order-btn{background:#343b45;color:#fff;border-color:#777}
 .employee-week .week-number{background:#fff;text-align:left}
 .employee-week td{height:38px;font-size:18px;text-align:center;vertical-align:middle;padding:4px}
 .employee-week td.employee-editable{cursor:pointer;text-align:center;vertical-align:middle}
@@ -4372,13 +4376,13 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     const thursday=new Date(monday);thursday.setDate(monday.getDate()+3);
     const firstThursday=new Date(thursday.getFullYear(),0,4);firstThursday.setDate(firstThursday.getDate()-((firstThursday.getDay()+6)%7)+3);
     const weekNo=1+Math.round((thursday-firstThursday)/(7*24*60*60*1000));
-    const people=readEmployeeMaster().sort((a,b)=>Number(a.apprentice)-Number(b.apprentice)||a.name.localeCompare(b.name,'de'));
+    const people=readEmployeeMaster();
     const rows=readEmployeePlan();
     const statusMap={planned:['X','planned'],sick:['K','sick'],open:['?','open'],vacation:['U','vacation'],school:['S','school']};
     let html='<div class="employee-week-wrap"><table class="employee-week"><thead><tr><th class="week-number">KW: '+weekNo+'</th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{weekday:'long'})+'</th>').join('')+'</tr><tr><th></th>'+days.map(d=>'<th>'+d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+'</th>').join('')+'</tr></thead><tbody>';
     people.forEach((person,index)=>{
       if(person.apprentice&&(!index||!people[index-1].apprentice))html+='<tr class="apprentice-start"><td colspan="6" style="background:#888;height:8px;padding:0"></td></tr>';
-      html+='<tr><th class="employee-name-cell">'+escapeHtml(person.name)+'</th>';
+      html+='<tr><th class="employee-name-cell">'+escapeHtml(person.name)+'<div class="employee-order-controls"><button type="button" class="employee-order-btn" data-employee-move="up" data-employee-index="'+index+'" title="Mitarbeiter nach oben" aria-label="'+escapeHtml(person.name)+' nach oben" '+(index===0||people[index-1].apprentice!==person.apprentice?'disabled':'')+'>▲</button><button type="button" class="employee-order-btn" data-employee-move="down" data-employee-index="'+index+'" title="Mitarbeiter nach unten" aria-label="'+escapeHtml(person.name)+' nach unten" '+(index===people.length-1||people[index+1].apprentice!==person.apprentice?'disabled':'')+'>▼</button></div></th>';
       days.forEach(d=>{const date=iso(d);const entry=rows.find(x=>x.date===date&&x.name.toLocaleLowerCase('de-DE')===person.name.toLocaleLowerCase('de-DE'));const st=entry&&statusMap[entry.status];const symbol=st?st[0]:'-';const cls=st?st[1]:'empty-day';const label=entry?({planned:'Eingeplant',sick:'Krank',open:'Noch offen',vacation:'Urlaub',school:'Berufsschule'}[entry.status]):'Nicht eingetragen';html+='<td class="'+cls+' employee-editable" data-employee-cell="1" data-employee-name="'+escapeHtml(person.name)+'" data-employee-date="'+date+'" title="'+label+' – anklicken zum Ändern">'+symbol+'</td>';});
       html+='</tr>';
     });
@@ -4553,6 +4557,16 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   $('employeePlanList').addEventListener('click',e=>{
     const btn=e.target.closest('[data-delete-employee-plan]'); if(!btn)return;
     saveEmployeePlan(readEmployeePlan().filter(x=>x.id!==btn.dataset.deleteEmployeePlan)); renderEmployeePlan();
+  });
+  $('employeePlanList').addEventListener('click',e=>{
+    const move=e.target.closest('[data-employee-move]');
+    if(!move||move.disabled)return;
+    const people=readEmployeeMaster();
+    const index=Number(move.dataset.employeeIndex);
+    const next=index+(move.dataset.employeeMove==='up'?-1:1);
+    if(!people[index]||!people[next]||people[index].apprentice!==people[next].apprentice)return;
+    [people[index],people[next]]=[people[next],people[index]];
+    saveEmployeeMaster(people);renderEmployeePlan();
   });
   $('employeePlanList').addEventListener('click',e=>{
     const cell=e.target.closest('td[data-employee-cell]');
