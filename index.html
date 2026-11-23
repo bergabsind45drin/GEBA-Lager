@@ -1191,8 +1191,8 @@ body.dark-mode .employee-week th,body.dark-mode .employee-week td{border-color:#
   const EDITOR_PASSWORD = "654321";
 
   const cfg = () => ({
-    url: localStorage.getItem('lager_supabase_url'),
-    key: localStorage.getItem('lager_supabase_key')
+    url: localStorage.getItem('lager_supabase_url') || 'https://rjdyqjzbqbgemzlqbvba.supabase.co',
+    key: localStorage.getItem('lager_supabase_key') || 'sb_publishable_DK1XOMDoWZWtm5armNOmbw_Pw_wZ_hx'
   });
 
   function show(id) {
@@ -1369,13 +1369,19 @@ body.dark-mode .employee-week th,body.dark-mode .employee-week td{border-color:#
     const watchedTables = [
       'products', 'stock_movements', 'tools', 'tool_issues',
       'maintenance_customers', 'fleet_vehicles', 'vehicle_inventory',
-      'warehouse_inventory'
+      'warehouse_inventory', 'geba_employee_planning'
     ];
     let channel = client.channel('geba-live-sync');
     watchedTables.forEach(table => {
       channel = channel.on('postgres_changes',
         { event: '*', schema: 'public', table },
         () => {
+          if(table==='geba_employee_planning'){
+            if(employeePlanUnlocked && !employeeCloudLoading){
+              loadEmployeeCloud().then(ok=>{if(ok){renderEmployeeMaster();renderEmployeePlan();}});
+            }
+            return;
+          }
           // Nur den gerade geöffneten, betroffenen Bereich aktualisieren.
           queueLiveRefresh(table);
         }
@@ -4346,12 +4352,14 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
   const EMPLOYEE_PLAN_PASSWORD = '241005';
   const EMPLOYEE_PLAN_STORAGE_KEY = 'geba-employee-planning-v1';
   const EMPLOYEE_MASTER_STORAGE_KEY = 'geba-employee-master-v1';
+  const EMPLOYEE_CLOUD_ROW_ID = 'shared';
   let employeePlanUnlocked = false;
+  let employeeCloudLoading = false;
+  let employeeCloudLastUpdated = 0;
   function readEmployeePlan(){
     try { const rows=JSON.parse(localStorage.getItem(EMPLOYEE_PLAN_STORAGE_KEY)||'[]'); return Array.isArray(rows)?rows:[]; }
     catch(e){ return []; }
   }
-  function saveEmployeePlan(rows){ localStorage.setItem(EMPLOYEE_PLAN_STORAGE_KEY,JSON.stringify(rows)); }
   function readEmployeeMaster(){
     try{
       const a=JSON.parse(localStorage.getItem(EMPLOYEE_MASTER_STORAGE_KEY)||'[]');
@@ -4359,7 +4367,48 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
       return a.map(x=>typeof x==='string'?{name:x,apprentice:false}:{name:String(x.name||''),apprentice:!!x.apprentice}).filter(x=>x.name);
     }catch(e){return [];}
   }
-  function saveEmployeeMaster(rows){localStorage.setItem(EMPLOYEE_MASTER_STORAGE_KEY,JSON.stringify(rows));}
+  function saveEmployeePlan(rows){
+    localStorage.setItem(EMPLOYEE_PLAN_STORAGE_KEY,JSON.stringify(rows));
+    saveEmployeeCloud({plan:rows});
+  }
+  function saveEmployeeMaster(rows){
+    localStorage.setItem(EMPLOYEE_MASTER_STORAGE_KEY,JSON.stringify(rows));
+    saveEmployeeCloud({employees:rows});
+  }
+  async function loadEmployeeCloud(){
+    if(!client||!currentUser||employeeCloudLoading)return false;
+    employeeCloudLoading=true;
+    try{
+      const {data,error}=await client.from('geba_employee_planning').select('employees,plan,updated_at').eq('id',EMPLOYEE_CLOUD_ROW_ID).maybeSingle();
+      if(error)throw error;
+      if(data){
+        localStorage.setItem(EMPLOYEE_MASTER_STORAGE_KEY,JSON.stringify(Array.isArray(data.employees)?data.employees:[]));
+        localStorage.setItem(EMPLOYEE_PLAN_STORAGE_KEY,JSON.stringify(Array.isArray(data.plan)?data.plan:[]));
+        employeeCloudLastUpdated=data.updated_at?Date.parse(data.updated_at):Date.now();
+      }else{
+        const {error:insertError}=await client.from('geba_employee_planning').insert({
+          id:EMPLOYEE_CLOUD_ROW_ID, employees:readEmployeeMaster(), plan:readEmployeePlan()
+        });
+        if(insertError&&insertError.code!=='23505')throw insertError;
+      }
+      return true;
+    }catch(e){
+      notify('Gemeinsame Mitarbeiterplanung konnte nicht geladen werden: '+(e.message||e)+' – bitte Supabase-Tabelle und RLS-SQL einrichten.',true);
+      return false;
+    }finally{employeeCloudLoading=false;}
+  }
+  async function saveEmployeeCloud(changes){
+    if(!client||!currentUser||employeeCloudLoading)return;
+    try{
+      const payload={id:EMPLOYEE_CLOUD_ROW_ID,employees:readEmployeeMaster(),plan:readEmployeePlan(),updated_at:new Date().toISOString()};
+      const {error}=await client.from('geba_employee_planning').upsert(payload,{onConflict:'id'});
+      if(error)throw error;
+      employeeCloudLastUpdated=Date.now();
+    }catch(e){
+      notify('Änderung konnte nicht online gespeichert werden: '+(e.message||e),true);
+    }
+  }
+
   function renderEmployeeMaster(){
     const people=readEmployeeMaster().sort((a,b)=>a.name.localeCompare(b.name,'de'));
     $('employeeMasterList').innerHTML=people.length?people.map((person,i)=>'<div class="employee-plan-card"><strong>'+escapeHtml(person.name)+(person.apprentice?' · Lehrling':'')+'</strong><button type="button" class="danger smallbtn" data-delete-employee-master="'+i+'">Entfernen</button></div>').join(''):'<p class="muted">Noch keine Mitarbeiter angelegt.</p>';
@@ -4391,7 +4440,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     if(!people.length)html='<p class="muted">Lege zuerst Mitarbeiter an, damit sie hier angezeigt werden.</p>';
     target.innerHTML=html;
   }
-  function openEmployeePlan(){
+  async function openEmployeePlan(){
     if(!employeePlanUnlocked){
       const entered=window.prompt('Passwort für die Mitarbeiterplanung:');
       if(entered!==EMPLOYEE_PLAN_PASSWORD){ if(entered!==null)notify('Passwort ist nicht korrekt.',true); return; }
@@ -4399,6 +4448,7 @@ Bestehende Fälligkeitsdaten bleiben erhalten. Der Preis wird aus Spalte D über
     }
     showMainView('employeePlan');
     showEmployeePlanSection('schedule');
+    await loadEmployeeCloud();
     const today=new Date(); const localDate=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
     if(!$('employeePlanDate').value)$('employeePlanDate').value=localDate;
     if(!$('employeePlanFilterDate').value)$('employeePlanFilterDate').value=localDate;
